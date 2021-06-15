@@ -26,5 +26,5 @@ apk add step-cli step-certificates
 ## Ubuntu/Debian
 
 ```
-curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/install_step.sh | bash
+curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/install_step.sh | sudo bash
 ```
