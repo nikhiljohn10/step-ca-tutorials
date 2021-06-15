@@ -1,5 +1,5 @@
 # Step CA Tutorials
 
-**[Installation](tutorial/Install.md)**
+**[Installation](tutorials/Install.md)**
 
-**[Basics](tutorial/Basics.md)**
+**[Basics](tutorials/Basics.md)**
