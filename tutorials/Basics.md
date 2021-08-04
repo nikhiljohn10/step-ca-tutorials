@@ -1,4 +1,4 @@
-# Basics
+# Root CA Configuration
 
 ### Prepare for generating CA
 
@@ -8,13 +8,26 @@ sudo mkdir -p /var/log/step-ca
 sudo chown -R step:step /var/log/step-ca
 sudo adduser step sudo
 sudo setcap CAP_NET_BIND_SERVICE=+eip $(which step-ca)
+su - step
+```
+
+### Generate password file
+
+```
+openssl rand -base64 15 > /home/step/password.txt
+```
+or
+```
+gpg --gen-random --armor 1 15 > /home/step/password.txt
+```
+or
+```
+date +%s | sha256sum | base64 | head -c 15 > /home/step/password.txt
 ```
 
 ### Generate CA
 
 ```
-su - step
-date +%s | sha256sum | base64 | head -c 30 > /home/step/password.txt
 step ca init --name "Happy Home CA" --provisioner admin \
   --dns localhost --address ":443" \
   --password-file /home/step/password.txt \
