@@ -28,7 +28,7 @@ date +%s | sha256sum | base64 | head -c 15 > /home/step/password.txt
 ### Generate CA
 
 ```
-step ca init --name "Happy Home CA" --provisioner admin \
+step ca init --name "Tutorial CA" --provisioner admin \
   --dns localhost --address ":443" \
   --password-file /home/step/password.txt \
   --provisioner-password-file /home/step/password.txt \
