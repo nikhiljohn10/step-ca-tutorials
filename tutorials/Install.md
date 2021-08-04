@@ -32,5 +32,5 @@ curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/i
 
 For uninstallation, use the following command:
 ```
-sudo dpkg -r step-cli step-ca; rm -rf $HOME/.step
+dpkg -r step-cli step-ca; rm -rf $HOME/.step
 ```
