@@ -25,9 +25,11 @@ step ca init --name "Happy Home CA" --provisioner admin \
 
 ```
 step-ca $(step path)/config/ca.json --password-file /home/step/password.txt
+```
 
-(or)
+### Service
 
+```
 sudo nano /etc/systemd/system/step-ca.service
 sudo systemctl daemon-reload
 sudo systemctl status step-ca
@@ -36,7 +38,7 @@ sudo journalctl --follow --unit=step-ca
 ```
 
 Copy paste following content in to the text editor:
-```
+```toml
 [Unit]
 Description=step-ca service
 After=syslog.target network.target
