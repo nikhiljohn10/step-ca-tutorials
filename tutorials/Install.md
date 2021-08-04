@@ -1,4 +1,5 @@
 # Installation
+
 ## Pacman/Arch Linux
 
 ```
@@ -27,4 +28,9 @@ apk add step-cli step-certificates
 
 ```
 curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/install_step.sh | sudo bash
+```
+
+For uninstallation, use the following command:
+```
+sudo dpkg -r step-cli step-ca; rm -rf $HOME/.step
 ```
