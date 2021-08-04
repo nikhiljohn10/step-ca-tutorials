@@ -27,10 +27,10 @@ apk add step-cli step-certificates
 ## Ubuntu/Debian
 
 ```
-curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/install_step.sh | sudo bash
+sudo bash scripts/install.sh
 ```
 
 For uninstallation, use the following command:
 ```
-dpkg -r step-cli step-ca; rm -rf $HOME/.step
+sudo bash scripts/uninstall.sh
 ```
