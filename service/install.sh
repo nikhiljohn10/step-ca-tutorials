@@ -25,4 +25,4 @@ setcap CAP_NET_BIND_SERVICE=+eip $STEP_CA
 mkdir -p $STEP_CA_LOG
 chown -R step:step $STEP_CA_LOG
 
-cp 
+cp service/step-ca.service /etc/systemd/system/step-ca.service

@@ -4,11 +4,11 @@ if ! [ "$(whoami)" == "step" ]; then
   exit 1
 fi
 
-mkdir -p $HOME/.step/
+mkdir -p /home/step/.step/
 if type "openssl" > /dev/null 2>&1; then
-  openssl rand -base64 24 > $HOME/.step/password.txt
+  openssl rand -base64 24 > /home/step/.step/password
 elif type "gpg" > /dev/null 2>&1; then
-  gpg --gen-random --armor 1 24 > $HOME/.step/password.txt
+  gpg --gen-random --armor 1 24 > /home/step/.step/password
 else
   echo "Need openssl or GPG to genereate password"
 fi
