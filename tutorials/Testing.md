@@ -5,10 +5,10 @@ Requirement: [multipass](https://multipass.run/)
 ### Start new VM instance
 
 ```
-bash test/start.sh
+bash multipass/start.sh
 ```
 
 ### Reset VM instance
 ```
-bash test/reset.sh
+bash multipass/reset.sh
 ```

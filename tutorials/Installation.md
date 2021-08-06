@@ -3,12 +3,20 @@
 ## Ubuntu/Debian
 
 ```
-sudo bash scripts/install.sh
+sudo bash install
+```
+or
+```
+curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/scripts/install.sh | sudo bash
 ```
 
 For uninstallation, use the following command:
 ```
-sudo bash scripts/uninstall.sh
+sudo bash uninstall
+```
+or
+```
+curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/scripts/uninstall.sh | sudo bash
 ```
 
 ## Pacman/Arch Linux

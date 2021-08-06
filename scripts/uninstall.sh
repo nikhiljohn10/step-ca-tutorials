@@ -6,4 +6,4 @@ fi
 dpkg -r step-cli step-ca
 deluser step sudo
 userdel --remove step
-rm -rf /var/log/step-ca /home/step/.step /tmp/step
+rm -rf /var/log/step-ca/* /home/step/.step/* /tmp/step
