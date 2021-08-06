@@ -35,6 +35,13 @@ helm install step-certificates
 apk add step-cli step-certificates
 ```
 
+## Docker
+
+```
+docker pull smallstep/step-ca
+docker volume create step
+docker run -it -v step:/home/step smallstep/step-ca sh
+```
 
 ## Limitation
 
