@@ -1,5 +1,16 @@
 # Installation
 
+## Ubuntu/Debian
+
+```
+sudo bash scripts/install.sh
+```
+
+For uninstallation, use the following command:
+```
+sudo bash scripts/uninstall.sh
+```
+
 ## Pacman/Arch Linux
 
 ```
@@ -24,13 +35,14 @@ helm install step-certificates
 apk add step-cli step-certificates
 ```
 
-## Ubuntu/Debian
+## Docker
 
 ```
-sudo bash scripts/install.sh
+docker pull smallstep/step-ca
+docker volume create step
+docker run -it -v step:/home/step smallstep/step-ca sh
 ```
 
-For uninstallation, use the following command:
-```
-sudo bash scripts/uninstall.sh
-```
+## Limitation
+
+- Not compatible with Windows or WSL
