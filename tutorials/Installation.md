@@ -1,5 +1,16 @@
 # Installation
 
+## Ubuntu/Debian
+
+```
+sudo bash scripts/install.sh
+```
+
+For uninstallation, use the following command:
+```
+sudo bash scripts/uninstall.sh
+```
+
 ## Pacman/Arch Linux
 
 ```
@@ -24,13 +35,7 @@ helm install step-certificates
 apk add step-cli step-certificates
 ```
 
-## Ubuntu/Debian
 
-```
-sudo bash scripts/install.sh
-```
+## Limitation
 
-For uninstallation, use the following command:
-```
-sudo bash scripts/uninstall.sh
-```
+- Not compatible with Windows or WSL
