@@ -3,20 +3,11 @@
 ## Ubuntu/Debian
 
 ```
-sudo bash install
-```
-or
-```
-curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/scripts/install.sh | sudo bash
-```
-
-For uninstallation, use the following command:
-```
-sudo bash uninstall
-```
-or
-```
-curl -o- https://raw.githubusercontent.com/nikhiljohn10/step-ca-tutorials/main/scripts/uninstall.sh | sudo bash
+git clone https://github.com/nikhiljohn10/step-ca-tutorials
+cd step-ca-tutorials
+bash vm/ca.sh
+bash vm/sub.sh
+bash vm/client.sh
 ```
 
 ## Pacman/Arch Linux
