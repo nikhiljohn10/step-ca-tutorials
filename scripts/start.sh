@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 
 STEP_PATH=$(step path)
 PASSWORD_FILE="${STEP_PATH}/secrets/password.txt"
