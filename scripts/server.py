@@ -1,33 +1,44 @@
 #!/usr/bin/env python3
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import ssl, os, sys
+import ssl
+import argparse
+from socketserver import ThreadingMixIn
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
+parser = argparse.ArgumentParser(description='Python HTTPS Server')
+parser.add_argument('-m', '--mtls', dest='mtls', action='store_true')
+args = parser.parse_args()
+MTLS: bool = args.mtls
 
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+class SimpleServer(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.send_response(200)
+        self.send_header('content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(b'Hello, world!')
+        self.wfile.write(b'\n\xf0\x9f\x91\x8b Hello, world!\n')
+
+
+class ThreadingSimpleServer(ThreadingMixIn,HTTPServer):
+    pass
+
 
 if __name__ == '__main__':
+    server = ThreadingSimpleServer(('', 443), SimpleServer)
+
+    server.socket = ssl.wrap_socket(
+        sock=server.socket, 
+        cert_reqs=MTLS and ssl.CERT_REQUIRED or ssl.CERT_OPTIONAL,
+        ca_certs="/home/ubuntu/.step/certs/root_ca.crt",
+        keyfile="/etc/letsencrypt/live/stepsub.multipass/privkey.pem", 
+        certfile="/etc/letsencrypt/live/stepsub.multipass/fullchain.pem",
+        server_side=True,
+    )
+    print("Server started https://stepsub.multipass")
     try:
-
-        httpd = HTTPServer(('', 443), SimpleHTTPRequestHandler)
-
-        httpd.socket = ssl.wrap_socket (
-            httpd.socket, 
-            keyfile="/etc/letsencrypt/live/stepsub.multipass/privkey.pem", 
-            certfile="/etc/letsencrypt/live/stepsub.multipass/fullchain.pem",
-            server_side=True
-        )
-
-        httpd.serve_forever()
-
+        server.serve_forever()
     except KeyboardInterrupt:
-        print('\rServer exited')
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
+        pass
+
+    server.server_close()
+    print('\rServer exited')
