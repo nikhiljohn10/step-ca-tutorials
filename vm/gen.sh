@@ -52,7 +52,7 @@ while (( "$#" )); do
         -d|--delete)
             ($MULTIPASS delete $VM_NAME && $MULTIPASS purge) && \
             echo "Successfully removed $VM_NAME" || exit 1
-            exit 0
+            shift
             ;;
         -*|--*=)
             echo "Error: Unsupported flag $1" >&2
@@ -97,7 +97,6 @@ if ! $MULTIPASS ls | grep $VM_NAME > /dev/null 2>&1; then
             $MULTIPASS exec $VM_NAME -- sudo mv server /usr/bin/server
             $MULTIPASS exec $VM_NAME -- sudo chmod a+x /usr/bin/server
             $MULTIPASS exec $VM_NAME -- sudo mv step-renew.service /etc/systemd/system/step-renew.service
-            $MULTIPASS exec $VM_NAME -- sudo snap install certbot --classic
         elif [ "$SERVE_CA" == "0" ]; then
             $MULTIPASS transfer scripts/start.sh $VM_NAME:start
             echo "Starting step server"

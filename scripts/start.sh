@@ -2,20 +2,14 @@
 
 STEP_PATH=$(step path)
 PASSWORD_FILE="${STEP_PATH}/secrets/password.txt"
-IP_ADDR=$(hostname -I)
+IP_ADDR=$(hostname -I | xargs)
 
-if [ "$1" == "-t" ]; then
-  $(step ca token --password-file ${PASSWORD_FILE} ${2})
-  exit 0
-fi
-
+ORG_NAME="Step CA Tutorial"
+DNS_ADDR="stepca.multipass"
+PROVISIONER="tokenizer"
+LISTEN=":443"
 
 if [ ! -f "${PASSWORD_FILE}" ]; then
-
-  ORG_NAME="Step Tutorial"
-  DNS_ADDR="localhost,${IP_ADDR}"
-  PROVISIONER="admin@${DNS_ADDR}"
-  LISTEN=":443"
 
   # Password generation
   mkdir -p "${STEP_PATH}/secrets"
@@ -35,9 +29,13 @@ if [ ! -f "${PASSWORD_FILE}" ]; then
     --password-file $PASSWORD_FILE \
     --provisioner-password-file $PASSWORD_FILE
 
-  echo "Password is in ${PASSWORD_FILE}"
+  step ca provisioner add acme --type ACME
 
 fi
 
-echo "You CA link is https://${IP_ADDR}"
+PASSWORD=$(cat ${PASSWORD_FILE})
+FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
+echo "Password is ${PASSWORD}"
+echo "Fingerprint is ${FINGERPRINT}"
+echo "You CA link is https://${DNS_ADDR} or https://${IP_ADDR}"
 step-ca "${STEP_PATH}/config/ca.json" --password-file $PASSWORD_FILE
