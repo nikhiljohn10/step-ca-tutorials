@@ -15,11 +15,13 @@ if ! wget -q --spider https://google.com; then
 fi
 
 MULTIPASS=$(which multipass)
+PYTHON=$(which python3)
 NET_FILE="/etc/netplan/50-cloud-init.yaml"
 PARAMS=""
 SERVE_CA=1
 UPGRADE_VM=1
 RUN_STEP_CA=1
+SERVE_HTTPS=1
 VM_NAME=$1
 
 if [[ "${VM_NAME}" =~ [^a-zA-Z] ]]; then
@@ -37,6 +39,10 @@ while (( "$#" )); do
             ;;
         -s|--serve)
             SERVE_CA=0
+            shift
+            ;;
+        -p|--pyserver)
+            SERVE_HTTPS=0
             shift
             ;;
         -u|--upgrade)
@@ -76,15 +82,24 @@ if ! $MULTIPASS ls | grep $VM_NAME > /dev/null 2>&1; then
     fi
 
     if [ "$RUN_STEP_CA" == "0" ]; then
+    
         $MULTIPASS transfer scripts/install.sh $VM_NAME:install
         $MULTIPASS transfer scripts/uninstall.sh $VM_NAME:uninstall
-        $MULTIPASS transfer scripts/start.sh $VM_NAME:start
+        $MULTIPASS transfer scripts/bootstrap.sh $VM_NAME:bootstrap
 
         echo "Installing step-cli and step-ca"
         $MULTIPASS exec $VM_NAME -- sudo bash install && \
         echo "Successfully installed step-cli and step-ca"
 
-        if [ "$SERVE_CA" == "0" ]; then
+        if [ "$SERVE_HTTPS" == "0" ]; then
+            $MULTIPASS transfer scripts/server.py $VM_NAME:server
+            $MULTIPASS transfer scripts/step-renew.service $VM_NAME:step-renew.service
+            $MULTIPASS exec $VM_NAME -- sudo mv server /usr/bin/server
+            $MULTIPASS exec $VM_NAME -- sudo chmod a+x /usr/bin/server
+            $MULTIPASS exec $VM_NAME -- sudo mv step-renew.service /etc/systemd/system/step-renew.service
+            $MULTIPASS exec $VM_NAME -- sudo snap install certbot --classic
+        elif [ "$SERVE_CA" == "0" ]; then
+            $MULTIPASS transfer scripts/start.sh $VM_NAME:start
             echo "Starting step server"
             $MULTIPASS exec $VM_NAME -- bash start
         fi
