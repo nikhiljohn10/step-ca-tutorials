@@ -3,12 +3,11 @@
 ## Ubuntu/Debian
 
 ```
-sudo bash scripts/install.sh
-```
-
-For uninstallation, use the following command:
-```
-sudo bash scripts/uninstall.sh
+git clone https://github.com/nikhiljohn10/step-ca-tutorials
+cd step-ca-tutorials
+bash vm/ca.sh
+bash vm/sub.sh
+bash vm/client.sh
 ```
 
 ## Pacman/Arch Linux
