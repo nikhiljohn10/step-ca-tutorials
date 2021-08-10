@@ -148,10 +148,18 @@ process_vm() {
 main(){
     check_multipass
     check_network
-    [[ $# -eq 0 ]] && show_help
     verify_vm
     parse_params $@
     process_vm
 }
 
-main $@
+[[ $# -eq 0 ]] && show_help
+if [ "$1" == "ca" ]; then
+    main "stepca" -c -s $@
+elif [ "$1" == "server" ]; then
+    main "stepserver" -c -p $@
+elif [ "$1" == "client" ]; then
+    main "stepclient" -c $@
+else
+    main $@
+fi
