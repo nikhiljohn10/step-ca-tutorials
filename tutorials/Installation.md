@@ -5,9 +5,9 @@
 ```
 git clone https://github.com/nikhiljohn10/step-ca-tutorials
 cd step-ca-tutorials
-./vm ca
-./vm server
-./vm client
+./vm.sh ca
+./vm.sh server
+./vm.sh client
 ```
 
 ## Pacman/Arch Linux

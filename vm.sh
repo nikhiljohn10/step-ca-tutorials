@@ -121,6 +121,9 @@ process_vm() {
             $MULTIPASS transfer scripts/install.sh $VM_NAME:install
             $MULTIPASS transfer scripts/uninstall.sh $VM_NAME:uninstall
             $MULTIPASS transfer scripts/bootstrap.sh $VM_NAME:bootstrap
+            $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep
+            $MULTIPASS exec $VM_NAME -- chmod a+x runstep
+            $MULTIPASS exec $VM_NAME -- sudo mv runstep /usr/bin/runstep
 
             echo "Installing step-cli and step-ca"
             $MULTIPASS exec $VM_NAME -- sudo bash install && \
@@ -129,8 +132,7 @@ process_vm() {
             if [ "$SERVE_HTTPS" == "0" ]; then
                 $MULTIPASS transfer scripts/server.py $VM_NAME:server
                 $MULTIPASS transfer scripts/step-renew.service $VM_NAME:step-renew.service
-                $MULTIPASS exec $VM_NAME -- sudo mv server /usr/bin/server
-                $MULTIPASS exec $VM_NAME -- sudo chmod a+x /usr/bin/server
+                $MULTIPASS exec $VM_NAME -- chmod a+x server
                 $MULTIPASS exec $VM_NAME -- sudo mv server /usr/bin/server
                 $MULTIPASS exec $VM_NAME -- sudo mv step-renew.service /etc/systemd/system/step-renew.service
             elif [ "$SERVE_CA" == "0" ]; then

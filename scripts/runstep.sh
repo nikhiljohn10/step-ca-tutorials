@@ -1,10 +1,12 @@
 
 RUN_STEP_CA=1
 RUN_SERVE=1
-RUN_CLIENT=1
+COMMAND_FOUND=0
 
 show_help() {
-    echo "Usage: runstep [options]"
+    echo "Usage: runstep <command> [options]"
+    echo "Commands:"
+    echo "         install <fingerprint>    Install Step CA"
     echo "Options:"
     echo "         -c,--ca        Setup CA"
     echo "         -s,--server    Setup Webserver"
@@ -30,11 +32,23 @@ parse_params() {
 
     while (( "$#" )); do
         case "$1" in
+            install)
+                echo "Install Step CA"
+                shift
+                ;;
             -c|--ca)
                 RUN_STEP_CA=0
                 shift
                 ;;
             -s|--server)
+                RUN_SERVE=0
+                shift
+                ;;
+            -i|--install-only)
+                RUN_SERVE=0
+                shift
+                ;;
+            -u|--uninstall)
                 RUN_SERVE=0
                 shift
                 ;;
@@ -52,9 +66,13 @@ parse_params() {
 }
 
 run_command() {
+
     if [ "$RUN_STEP_CA" == "0" ]; then
+        echo "Run CA"
     elif [ "$RUN_SERVE" == "0" ]; then
+        echo "Run Server"
     else
+        echo "Run Client"
     fi
 }
 
