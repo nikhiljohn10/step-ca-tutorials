@@ -50,7 +50,6 @@ parse_params() {
     done
     eval set -- "$PARAMS"
 }
-}
 
 run_command() {
     if [ "$RUN_STEP_CA" == "0" ]; then
