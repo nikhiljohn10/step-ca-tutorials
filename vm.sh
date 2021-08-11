@@ -32,7 +32,7 @@ check_network() {
 }
 
 show_help() {
-    echo "Usage: bash vm/gen.sh <name> [options]"
+    echo "Usage: ./vm <name> [options]"
     echo "Options:"
     echo "         -c,--step-ca    Install step ca inside vm"
     echo "         -s,--serve      Run step ca server if --step-ca options is given"
@@ -53,7 +53,7 @@ verify_vm() {
 }
 
 delete_vm() {
-    ($MULTIPASS delete $VM_NAME && $MULTIPASS purge) && \
+    $MULTIPASS delete $VM_NAME -p && \
     echo "Successfully removed $VM_NAME" || exit 1
     VM_EXISTS=1
 }
@@ -121,6 +121,9 @@ process_vm() {
             $MULTIPASS transfer scripts/install.sh $VM_NAME:install
             $MULTIPASS transfer scripts/uninstall.sh $VM_NAME:uninstall
             $MULTIPASS transfer scripts/bootstrap.sh $VM_NAME:bootstrap
+            $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep
+            $MULTIPASS exec $VM_NAME -- chmod a+x runstep
+            $MULTIPASS exec $VM_NAME -- sudo mv runstep /usr/bin/runstep
 
             echo "Installing step-cli and step-ca"
             $MULTIPASS exec $VM_NAME -- sudo bash install && \
@@ -129,11 +132,13 @@ process_vm() {
             if [ "$SERVE_HTTPS" == "0" ]; then
                 $MULTIPASS transfer scripts/server.py $VM_NAME:server
                 $MULTIPASS transfer scripts/step-renew.service $VM_NAME:step-renew.service
+                $MULTIPASS exec $VM_NAME -- chmod a+x server
                 $MULTIPASS exec $VM_NAME -- sudo mv server /usr/bin/server
-                $MULTIPASS exec $VM_NAME -- sudo chmod a+x /usr/bin/server
                 $MULTIPASS exec $VM_NAME -- sudo mv step-renew.service /etc/systemd/system/step-renew.service
             elif [ "$SERVE_CA" == "0" ]; then
                 $MULTIPASS transfer scripts/start.sh $VM_NAME:start
+                $MULTIPASS transfer scripts/step-ca.service $VM_NAME:step-ca.service
+                $MULTIPASS exec $VM_NAME -- sudo mv step-ca.service /etc/systemd/system/step-ca.service
                 echo "Starting step server"
                 $MULTIPASS exec $VM_NAME -- bash start
             fi

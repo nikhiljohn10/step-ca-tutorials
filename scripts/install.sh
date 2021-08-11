@@ -35,23 +35,20 @@ STEP_CA_LOG="/var/log/step-ca"
 PASSWORD_FILE="${STEP_PATH}/secrets/password.txt"
 
 # Create new step user
-# useradd --system --home $STEP_PATH --shell /bin/false step
-# usermod -aG sudo step
-# passwd -l step
+useradd --system --home $STEP_PATH --shell /bin/false step
+passwd -l step
 
+# Preparing logging location
+mkdir -p ${STEP_CA_LOG}
+chown -R step:step ${STEP_CA_LOG}
 
 # Service installation
-# cp service/step-ca.service /etc/systemd/system/step-ca.service
-# systemctl daemon-reload
-# systemctl status step-ca
+systemctl daemon-reload
+systemctl status step-ca
+
+# Enable step-ca to bind ports lower than 1024
+setcap CAP_NET_BIND_SERVICE=+eip ${STEP_CA}
 
 # Use following commands to activate service after pki is created
 # systemctl enable step-ca
 # systemctl start step-ca
-
-# Preparing logging location
-# mkdir -p ${STEP_CA_LOG}
-# chown -R step:step ${STEP_CA_LOG}
-
-# Enable step-ca to bind ports lower than 1024
-setcap CAP_NET_BIND_SERVICE=+eip ${STEP_CA}

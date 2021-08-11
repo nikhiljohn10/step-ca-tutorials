@@ -5,14 +5,14 @@ Wants=network-online.target
 StartLimitIntervalSec=30
 StartLimitBurst=3
 ConditionFileNotEmpty=/home/step/.step/config/ca.json
-ConditionFileNotEmpty=/home/step/.step/password
+ConditionFileNotEmpty=/home/step/.step/secrets/password.txt
 
 [Service]
 User=step
 Group=step
 Environment=STEPPATH=/home/step/.step/
 WorkingDirectory=/home/step/.step/
-ExecStart=/bin/step-ca /home/step/.step/config/ca.json --password-file=/home/step/.step/password >> /var/log/step-ca/output.log 2>&1
+ExecStart=/bin/step-ca /home/step/.step/config/ca.json --password-file=/home/step/.step/secrets/password.txt >> /var/log/step-ca/output.log 2>&1
 ExecReload=/bin/kill --signal HUP $MAINPID
 Type=simple
 Restart=on-failure
