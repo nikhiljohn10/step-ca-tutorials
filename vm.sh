@@ -3,7 +3,7 @@
 MULTIPASS=$(which multipass)
 PYTHON=$(which python3)
 NET_FILE="/etc/netplan/50-cloud-init.yaml"
-VM_NAME=$1
+VM_NAME=""
 SERVE_CA=1
 UPGRADE_VM=1
 RUN_STEP_CA=1
@@ -16,7 +16,6 @@ check_multipass() {
         echo "Multipass is not installed"
         exit 1
     fi
-    echo "Multipass verified"
 }
 
 check_network() {
@@ -28,18 +27,18 @@ check_network() {
         fi
         exit 1
     fi
-    echo "Network connectivity verified"
 }
 
 show_help() {
-    echo "Usage: ./vm <name> [options]"
-    echo "Options:"
-    echo "         -c,--step-ca    Install step ca inside vm"
-    echo "         -s,--serve      Run step ca server if --step-ca options is given"
-    echo "         -p,--pyserver   Run python https server using certificate from certbot inside vm"
-    echo "         -u,--upgrade    Update and upgrade packages inside ubuntu vm"
-    echo "         -d,--delete     Delete the instance"
-    exit 0
+    cat << EOF
+Usage: ./vm <name> [options]
+Options:
+         -c,--step-ca    Install step ca inside vm
+         -s,--serve      Run step ca server if --step-ca options is given
+         -p,--pyserver   Run python https server using certificate from certbot inside vm
+         -u,--upgrade    Update and upgrade packages inside ubuntu vm
+         -d,--delete     Delete the instance
+EOF
 }
 
 verify_vm() {
@@ -117,30 +116,29 @@ process_vm() {
         fi
 
         if [ "$RUN_STEP_CA" == "0" ]; then
-        
-            $MULTIPASS transfer scripts/install.sh $VM_NAME:install
-            $MULTIPASS transfer scripts/uninstall.sh $VM_NAME:uninstall
-            $MULTIPASS transfer scripts/bootstrap.sh $VM_NAME:bootstrap
+
             $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep
-            $MULTIPASS exec $VM_NAME -- chmod a+x runstep
+            $MULTIPASS exec $VM_NAME -- chmod 755 runstep
+            $MULTIPASS exec $VM_NAME -- chmod 755 runstep
             $MULTIPASS exec $VM_NAME -- sudo mv runstep /usr/bin/runstep
+            $MULTIPASS exec $VM_NAME -- runstep completion
 
             echo "Installing step-cli and step-ca"
-            $MULTIPASS exec $VM_NAME -- sudo bash install && \
+            $MULTIPASS exec $VM_NAME -- sudo runstep install && \
             echo "Successfully installed step-cli and step-ca"
 
             if [ "$SERVE_HTTPS" == "0" ]; then
                 $MULTIPASS transfer scripts/server.py $VM_NAME:server
-                $MULTIPASS transfer scripts/step-renew.service $VM_NAME:step-renew.service
-                $MULTIPASS exec $VM_NAME -- chmod a+x server
+                $MULTIPASS transfer services/step-renew.service $VM_NAME:step-renew.service
+                $MULTIPASS exec $VM_NAME -- chmod 755 server
                 $MULTIPASS exec $VM_NAME -- sudo mv server /usr/bin/server
                 $MULTIPASS exec $VM_NAME -- sudo mv step-renew.service /etc/systemd/system/step-renew.service
             elif [ "$SERVE_CA" == "0" ]; then
-                $MULTIPASS transfer scripts/start.sh $VM_NAME:start
-                $MULTIPASS transfer scripts/step-ca.service $VM_NAME:step-ca.service
+                $MULTIPASS transfer services/step-ca.service $VM_NAME:step-ca.service
+                $MULTIPASS exec $VM_NAME -- runstep init
                 $MULTIPASS exec $VM_NAME -- sudo mv step-ca.service /etc/systemd/system/step-ca.service
-                echo "Starting step server"
-                $MULTIPASS exec $VM_NAME -- bash start
+                $MULTIPASS exec $VM_NAME -- sudo runstep service install
+                exit 0
             fi
         fi
     else
@@ -150,21 +148,21 @@ process_vm() {
     $MULTIPASS shell $VM_NAME
 }
 
-main(){
+main() {
+    VM_NAME=$1
     check_multipass
-    check_network
     verify_vm
+    check_network
     parse_params $@
     process_vm
 }
-
-[[ $# -eq 0 ]] && show_help
-if [ "$1" == "ca" ]; then
-    main "stepca" -c -s $@
-elif [ "$1" == "server" ]; then
-    main "stepserver" -c -p $@
-elif [ "$1" == "client" ]; then
-    main "stepclient" -c $@
-else
-    main $@
-fi
+ 
+[[ $# -eq 0 ]] && show_help && exit 1
+case "$1" in
+    ca)         shift && main "stepca" -c -s $@;;
+    server)     shift && main "stepserver" -c -p $@;;
+    client)     shift && main "stepclient" -c $@;;
+    reset)      check_multipass && $MULTIPASS delete --all -p && echo "Multipass is reset";;
+    help)       show_help;;
+    *)          main $@;;
+esac
