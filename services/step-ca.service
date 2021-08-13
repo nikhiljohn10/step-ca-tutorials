@@ -1,31 +1,35 @@
 [Unit]
 Description=step-ca service
-After=syslog.target network.target
+Documentation=https://smallstep.com/docs/step-ca
+Documentation=https://smallstep.com/docs/step-ca/certificate-authority-server-production
+After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=30
 StartLimitBurst=3
-ConditionFileNotEmpty=/home/step/.step/config/ca.json
-ConditionFileNotEmpty=/home/step/.step/secrets/password.txt
+ConditionFileNotEmpty=/etc/step-ca/config/ca.json
+ConditionFileNotEmpty=/etc/step-ca/secrets/password.txt
 
 [Service]
+Type=simple
 User=step
 Group=step
-Environment=STEPPATH=/home/step/.step/
-WorkingDirectory=/home/step/.step/
-ExecStart=/bin/step-ca /home/step/.step/config/ca.json --password-file=/home/step/.step/secrets/password.txt >> /var/log/step-ca/output.log 2>&1
+Environment=STEPPATH=/etc/step-ca
+WorkingDirectory=/etc/step-ca
+ExecStart=/usr/bin/step-ca config/ca.json --password-file secrets/password.txt
 ExecReload=/bin/kill --signal HUP $MAINPID
-Type=simple
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 TimeoutStopSec=30
 StartLimitInterval=30
 StartLimitBurst=3
 
+; Process capabilities & privileges
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 SecureBits=keep-caps
 NoNewPrivileges=yes
 
+; Sandboxing
 ProtectSystem=full
 ProtectHome=true
 RestrictNamespaces=true
@@ -44,7 +48,7 @@ RestrictRealtime=true
 SystemCallFilter=@system-service
 SystemCallArchitectures=native
 MemoryDenyWriteExecute=true
-ReadWriteDirectories=/home/step/.step/db
+ReadWriteDirectories=/etc/step-ca/db
 
 [Install]
 WantedBy=multi-user.target
