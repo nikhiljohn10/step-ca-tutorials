@@ -102,23 +102,18 @@ process_vm() {
     [[ $FORCED_NEW_VM -eq 0 ]] && delete_vm
     if [[ $VM_EXISTS -eq 1 ]] ; then
         echo "Starting a new virtual instance of Ubuntu"
-        $MULTIPASS launch -n $VM_NAME --cloud-init - <<YAML
-packages: [avahi-daemon, tree]
-YAML
+        $MULTIPASS launch -n $VM_NAME && echo "VM ${VM_NAME} installed" || exit 1
 
         if [ "$UPGRADE_VM" == "0" ]; then
             echo "Updating ubuntu"
-            $MULTIPASS exec $VM_NAME -- sudo apt update && \
-            echo "Ubuntu is updated"
-            echo "Upgrading ubuntu"
-            $MULTIPASS exec $VM_NAME -- sudo apt upgrade -y && \
+            $MULTIPASS exec $VM_NAME -- sudo apt-get update -q=2 && \
+            $MULTIPASS exec $VM_NAME -- sudo apt-get upgrade -q=2 && \
             echo "Ubuntu is upgraded"
         fi
 
         if [ "$RUN_STEP_CA" == "0" ]; then
 
             $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep
-            $MULTIPASS exec $VM_NAME -- chmod 755 runstep
             $MULTIPASS exec $VM_NAME -- chmod 755 runstep
             $MULTIPASS exec $VM_NAME -- sudo mv runstep /usr/bin/runstep
             $MULTIPASS exec $VM_NAME -- runstep completion
