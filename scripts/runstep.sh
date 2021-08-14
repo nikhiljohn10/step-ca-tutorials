@@ -42,6 +42,14 @@ check_network() {
     fi
 }
 
+bind_port_permission() {
+    
+    require_sudo
+
+    # Enable step-ca to bind ports lower than 1024
+    setcap CAP_NET_BIND_SERVICE=+eip $(which step-ca)
+}
+
 install_stepca() {
 
     check_network
@@ -65,10 +73,11 @@ install_stepca() {
     wget -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
 
     # Install deb packages
-    dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb
-    dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb
-
+    dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb && \
+    dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb && \
+    bind_port_permission    
 }
+
 
 install_service() {
 
@@ -89,8 +98,6 @@ install_service() {
         # Create new step user
         useradd --system --home $STEP_PATH --shell /bin/false step
 
-        # Enable step-ca to bind ports lower than 1024
-        setcap CAP_NET_BIND_SERVICE=+eip $(which step-ca)
 
         mv $OLD_STEP_PATH $STEP_PATH
         sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/ca.json
