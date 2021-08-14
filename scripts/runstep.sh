@@ -220,7 +220,9 @@ uninstall_stepca() {
 }
 
 add_completion() {
-    echo "complete -W 'install uninstall service bootstrap start init follow creds help' runstep" >> /home/ubuntu/.bash_completion
+    BC_FILE="/home/ubuntu/.bash_completion"
+    grep -q runstep $BC_FILE || \
+    echo "complete -W 'install uninstall service bootstrap start init follow creds help' runstep" >> $BC_FILE
 }
 
 start_ca() {
