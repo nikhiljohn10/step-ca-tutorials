@@ -1,34 +1,35 @@
 #!/usr/bin/env bash
 
 ORG_NAME="Step CA Tutorial"
-STEPCA_DOMAIN="stepca.local"
+[[ "$OSTYPE" == "darwin"* ]] && STEPCA_TLD="local"
+STEPCA_DOMAIN="stepca.${STEPCA_TLD:=multipass}"
+SUBSCRIBER_DOMAIN="subscriber.${STEPCA_TLD:=multipass}"
+
+show_help() {
+    cat << EOF
+Usage: runstep <command>
+Commands:
+        install                         Install Step CA **
+        uninstall                       Uninstall Step CA **
+        start                           Start Step CA server
+        init                            Initialise Step CA
+        bootstrap FINGERPRINT [-c]      Bootstrap Step CA
+        follow                          Follow Step CA server log
+        creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
+        server [-m]                     Start Web server with optional mTLS **
+        service [COMMAND]                 Manage Step CA service (Show status if no commands found) **
+
+Service commands: install, start, stop, enable [--now], disable [--now], restart, status 
+
+[ ** - Require root access ]
+EOF
+}
 
 require_sudo() {
     if [[ "$EUID" -ne 0 ]]; then
         echo "PERMISSION DEINED: Require root access."
         exit 1
     fi
-}
-
-show_help() {
-    cat << EOF
-Usage: runstep <command>
-Commands:
-        install                 Install Step CA **
-        uninstall               Uninstall Step CA **
-        start                   Start Step CA server
-        init                    Initialise Step CA
-        bootstrap               Bootstrap Step CA
-        follow                  Follow Step CA server log
-        creds [STEP PATH]       show credentials of CA ** (default path=/etc/step-ca)
-        service <CMD>           Manage Step CA service **
-
-Service commands:
-        install         Install Step CA Service
-        *               All service commands accepted by systemctl
-
-[ ** - Require root access ]
-EOF
 }
 
 check_network() {
@@ -46,8 +47,10 @@ bind_port_permission() {
     
     require_sudo
 
+    PROGRAM=${1:-$(which step-ca)}
+
     # Enable step-ca to bind ports lower than 1024
-    setcap CAP_NET_BIND_SERVICE=+eip $(which step-ca)
+    setcap CAP_NET_BIND_SERVICE=+eip $PROGRAM
 }
 
 install_stepca() {
@@ -74,83 +77,13 @@ install_stepca() {
 
     # Dependencies
     apt-get update -q=2
-    apt-get install -q=2 tree avahi-daemon
+    apt-get install -q=2 tree
+    [[ "$OSTYPE" == "darwin"* ]] && apt-get install -q=2 avahi-daemon
 
     # Install deb packages
     dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb && \
     dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb && \
     bind_port_permission    
-}
-
-
-install_service() {
-
-    check_network
-    require_sudo
-
-    shift
-    if [[ "$1" == "install" ]]; then
-        # STEP CA Preparation
-        OLD_STEP_PATH="/home/ubuntu/.step"
-        STEP_PATH="/etc/step-ca"
-        STEP_CA_LOG="/var/log/step-ca"
-
-        #Check for password
-        [[ ! -f "${OLD_STEP_PATH}/secrets/password.txt" ]] && \
-        echo "Password file not found" && exit 1
-
-        # Create new step user
-        useradd --system --home $STEP_PATH --shell /bin/false step
-
-
-        mv $OLD_STEP_PATH $STEP_PATH
-        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/ca.json
-        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/defaults.json
-        mkdir -p "${STEP_PATH}/db"
-        chown -R step:step $STEP_PATH
-
-        systemctl daemon-reload
-        systemctl enable --now step-ca
-
-    elif [[ "$1" == "" ]]; then
-        systemctl status step-ca
-    else
-        systemctl "$1" step-ca
-    fi
-}
-
-stepca_bootstrap() {
-
-    check_network
-
-    STEP_PATH=$(step path)
-    ROOT_CRT_PATH="${STEP_PATH}/certs/root_ca.crt"
-    STEP_CA_URL="https://${STEPCA_DOMAIN}"
-    PARAMS=""
-    FINGERPRINT=""
-
-    shift
-    [ -n "$1" ] && [ ${1:0:1} != "-" ] && FINGERPRINT=$1 || \
-    (echo "Error: Fingerprint is missing" && exit 1)
-    shift
-    step ca bootstrap --ca-url $STEP_CA_URL -f --install --fingerprint $FINGERPRINT || exit 1
-    
-    if [[ $# -gt 0 ]]; then
-        case "$1" in
-            -c|--certbot)
-                sudo snap install certbot --classic && \
-                sudo REQUESTS_CA_BUNDLE=$ROOT_CRT_PATH \
-                certbot certonly -n --standalone \
-                    --agree-tos --email "admin@${STEP_CA_URL}" -d subscriber.local \
-                    --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
-                exit 0
-                ;;
-            *)
-                echo "Error: Unsupported flag $1" >&2
-                exit 1
-                ;;
-        esac
-    fi
 }
 
 show_creds() {
@@ -162,9 +95,11 @@ show_creds() {
     FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
     cat <<CREDS
 Password is ${PASSWORD}
-Use the following command to bootstrap
+Run the following in server:
+sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
 
-runstep bootstrap ${FINGERPRINT}
+Run the following in client
+runstep bootstrap ${FINGERPRINT} && curl https://${SUBSCRIBER_DOMAIN}
 
 CREDS
 }
@@ -202,10 +137,77 @@ init_ca() {
         step ca provisioner add acme --type ACME
 
     fi
+}
 
-    tree "${STEP_PATH}"
-    show_creds "${STEP_PATH}"
-    echo "You CA link is https://${STEPCA_DOMAIN} or https://${IP_ADDR}"
+install_service() {
+
+    check_network
+    require_sudo
+
+    shift
+    if [[ "$1" == "install" ]]; then
+        # STEP CA Preparation
+        OLD_STEP_PATH="/home/ubuntu/.step"
+        STEP_PATH="/etc/step-ca"
+
+        #Check for password
+        [[ ! -f "${OLD_STEP_PATH}/secrets/password.txt" ]] && \
+        echo "Password file not found" && exit 1
+
+        # Create new step user
+        useradd --system --home $STEP_PATH --shell /bin/false step
+
+
+        mv $OLD_STEP_PATH $STEP_PATH
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/ca.json
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/defaults.json
+        mkdir -p "${STEP_PATH}/db"
+        chown -R step:step $STEP_PATH
+
+        systemctl daemon-reload
+        systemctl enable --now step-ca > /dev/null 2>&1
+
+        tree "${STEP_PATH}"
+        show_creds "${STEP_PATH}"
+
+    elif [[ "$1" == "" ]]; then
+        systemctl status step-ca
+    else
+        systemctl "$1" step-ca
+    fi
+    
+}
+
+stepca_bootstrap() {
+
+    check_network
+
+    STEP_PATH=$(step path)
+    STEP_CA_URL="https://${STEPCA_DOMAIN}"
+    FINGERPRINT=""
+
+    shift
+    [ -n "$1" ] && [ ${1:0:1} != "-" ] && FINGERPRINT=$1 || \
+    (echo "Error: Fingerprint is missing" && exit 1)
+    shift
+    step ca bootstrap --ca-url $STEP_CA_URL -f --install --fingerprint $FINGERPRINT || exit 1
+    
+    if [[ $# -gt 0 ]]; then
+        case "$1" in
+            -c|--certbot)
+                sudo snap install certbot --classic && \
+                sudo REQUESTS_CA_BUNDLE="${STEP_PATH}/certs/root_ca.crt" \
+                certbot certonly -n --standalone \
+                    --agree-tos --email "admin@${STEP_CA_URL}" -d $SUBSCRIBER_DOMAIN \
+                    --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
+                exit 0
+                ;;
+            *)
+                echo "Error: Unsupported flag $1" >&2
+                exit 1
+                ;;
+        esac
+    fi
 }
 
 uninstall_stepca() {
@@ -222,13 +224,28 @@ uninstall_stepca() {
 add_completion() {
     BC_FILE="/home/ubuntu/.bash_completion"
     ([ -f "$BC_FILE" ] && grep -q runstep $BC_FILE) || \
-    echo "complete -W 'install uninstall service bootstrap start init follow creds help' runstep" >> $BC_FILE
+    echo "complete -W 'install uninstall service bootstrap start server init follow creds help' runstep" >> $BC_FILE
 }
 
 start_ca() {
     STEP_PATH=$(step path)
     STEPCA=$(which step-ca)
     $STEPCA $STEP_PATH/config/ca.json --password-file $STEP_PATH/secrets/password.txt
+}
+
+run_server() {
+    
+    check_network
+    require_sudo
+
+    ROOT_CERT="$(step path)/certs/root_ca.crt"
+    SERVER_CERT="/etc/letsencrypt/live/${SUBSCRIBER_DOMAIN}/fullchain.pem"
+    SERVER_KEY="/etc/letsencrypt/live/${SUBSCRIBER_DOMAIN}/privkey.pem"
+    SERVER=$(which server)
+
+    [[ $# -gt 0 ]] && [[ "$1" == "-m" ]] && set -- "-m"
+    bind_port_permission $SERVER
+    $SERVER -d $SUBSCRIBER_DOMAIN -r $ROOT_CERT -c $SERVER_CERT -k $SERVER_KEY "$@"
 }
 
 main() {
@@ -238,6 +255,7 @@ main() {
         service)        install_service "$@";;
         bootstrap)      stepca_bootstrap "$@";;
         completion)     add_completion;;
+        server)         run_server;;
         start)          start_ca;;
         init)           init_ca;;
         follow)         journalctl -f -u step-ca;;

@@ -133,6 +133,7 @@ process_vm() {
                 $MULTIPASS exec $VM_NAME -- runstep init
                 $MULTIPASS exec $VM_NAME -- sudo mv step-ca.service /etc/systemd/system/step-ca.service
                 $MULTIPASS exec $VM_NAME -- sudo runstep service install
+                exit 0
             fi
         fi
     else
