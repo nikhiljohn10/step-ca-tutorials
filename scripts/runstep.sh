@@ -72,6 +72,10 @@ install_stepca() {
     [ ! -f "${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb" ] && \
     wget -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
 
+    # Dependencies
+    apt install -y tree || snap install tree
+    apt install -y avahi-daemon
+
     # Install deb packages
     dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb && \
     dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb && \
