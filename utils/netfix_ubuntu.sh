@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
-for table in filter nat mangle; do
-  sudo iptables-legacy -t $table -S | grep Multipass | xargs -L1 sudo iptables-nft -t $table
-done
+if [[ "$EUID" -ne 0 ]]; then
+    echo "PERMISSION DEINED: Require root access."
+    exit 1
+else
+  for table in filter nat mangle; do
+    iptables-legacy -t $table -S | grep Multipass | xargs -L1 iptables-nft -t $table
+  done
+fi
+
