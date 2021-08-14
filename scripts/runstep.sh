@@ -73,8 +73,8 @@ install_stepca() {
     wget -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
 
     # Dependencies
-    apt install -y tree || snap install tree
-    apt install -y avahi-daemon
+    apt-get update -q=2
+    apt-get install -q=2 tree avahi-daemon
 
     # Install deb packages
     dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb && \
@@ -221,7 +221,7 @@ uninstall_stepca() {
 
 add_completion() {
     BC_FILE="/home/ubuntu/.bash_completion"
-    grep -q runstep $BC_FILE || \
+    ([ -f "$BC_FILE" ] && grep -q runstep $BC_FILE) || \
     echo "complete -W 'install uninstall service bootstrap start init follow creds help' runstep" >> $BC_FILE
 }
 

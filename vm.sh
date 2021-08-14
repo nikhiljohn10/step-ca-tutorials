@@ -106,8 +106,8 @@ process_vm() {
 
         if [ "$UPGRADE_VM" == "0" ]; then
             echo "Updating ubuntu"
-            $MULTIPASS exec $VM_NAME -- sudo apt update && \
-            $MULTIPASS exec $VM_NAME -- sudo apt upgrade -y && \
+            $MULTIPASS exec $VM_NAME -- sudo apt-get update -q=2 && \
+            $MULTIPASS exec $VM_NAME -- sudo apt-get upgrade -q=2 && \
             echo "Ubuntu is upgraded"
         fi
 
