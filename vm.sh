@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
-MULTIPASS=$(which multipass)
-PYTHON=$(which python3)
-NET_FILE="/etc/netplan/50-cloud-init.yaml"
+MULTIPASS=""
 VM_NAME=""
 SERVE_CA=1
 UPGRADE_VM=1
@@ -16,6 +14,7 @@ check_multipass() {
         echo "Multipass is not installed"
         exit 1
     fi
+    MULTIPASS=$(which multipass)
 }
 
 check_network() {
@@ -103,8 +102,9 @@ process_vm() {
     [[ $FORCED_NEW_VM -eq 0 ]] && delete_vm
     if [[ $VM_EXISTS -eq 1 ]] ; then
         echo "Starting a new virtual instance of Ubuntu"
-        $MULTIPASS launch -v -n $VM_NAME && \
-        echo "A new virtual machine called $VM_NAME is created"
+        $MULTIPASS launch -n $VM_NAME --cloud-init - <<YAML
+packages: [avahi-daemon, tree]
+YAML
 
         if [ "$UPGRADE_VM" == "0" ]; then
             echo "Updating ubuntu"
@@ -138,7 +138,6 @@ process_vm() {
                 $MULTIPASS exec $VM_NAME -- runstep init
                 $MULTIPASS exec $VM_NAME -- sudo mv step-ca.service /etc/systemd/system/step-ca.service
                 $MULTIPASS exec $VM_NAME -- sudo runstep service install
-                exit 0
             fi
         fi
     else
@@ -160,8 +159,8 @@ main() {
 [[ $# -eq 0 ]] && show_help && exit 1
 case "$1" in
     ca)         shift && main "stepca" -c -s $@;;
-    server)     shift && main "stepserver" -c -p $@;;
-    client)     shift && main "stepclient" -c $@;;
+    server)     shift && main "subscriber" -c -p $@;;
+    client)     shift && main "client" -c $@;;
     reset)      check_multipass && $MULTIPASS delete --all -p && echo "Multipass is reset";;
     help)       show_help;;
     *)          main $@;;
