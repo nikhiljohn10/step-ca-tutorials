@@ -24,14 +24,14 @@ parser.add_argument(
     dest='cert',
     type=str,
     help='Provide your domain certificate',
-    default='/etc/letsencrypt/live/stepsub.multipass/privkey.pem',
+    default='/etc/letsencrypt/live/subscriber.local/privkey.pem',
 )
 parser.add_argument(
     '-k', '--key',
     dest='key',
     type=str,
     help='Provide your domain certificate\'s private key',
-    default='/etc/letsencrypt/live/stepsub.multipass/fullchain.pem',
+    default='/etc/letsencrypt/live/subscriber.local/fullchain.pem',
 )
 args = parser.parse_args()
 MTLS: bool = args.mtls
@@ -60,7 +60,7 @@ if __name__ == '__main__':
         certfile=args.key,
         server_side=True,
     )
-    print("Server started https://stepsub.multipass")
+    print("Server started https://subscriber.local")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
