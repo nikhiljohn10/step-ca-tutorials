@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-RUN_STEP_CA=1
-RUN_SERVE=1
-COMMAND_FOUND=0
+ORG_NAME="Step CA Tutorial"
+STEPCA_DOMAIN="stepca.local"
 
 require_sudo() {
     if [[ "$EUID" -ne 0 ]]; then
@@ -15,12 +14,14 @@ show_help() {
     cat << EOF
 Usage: runstep <command>
 Commands:
-        install         Install Step CA **
-        uninstall       Uninstall Step CA **
-        init            Initialise Step CA
-        bootstrap       Bootstrap Step CA
-        follow          Follow Step CA server log
-        service <CMD>   Manage Step CA service **
+        install                 Install Step CA **
+        uninstall               Uninstall Step CA **
+        start                   Start Step CA server
+        init                    Initialise Step CA
+        bootstrap               Bootstrap Step CA
+        follow                  Follow Step CA server log
+        creds [STEP PATH]       show credentials of CA ** (default path=/etc/step-ca)
+        service <CMD>           Manage Step CA service **
 
 Service commands:
         install         Install Step CA Service
@@ -42,6 +43,9 @@ check_network() {
 }
 
 install_stepca() {
+
+    check_network
+    require_sudo
 
     CLI_REPO="smallstep/cli"
     CA_REPO="smallstep/certificates"
@@ -68,43 +72,57 @@ install_stepca() {
 
 install_service() {
 
-    # STEP CA Preparation
-    OLD_STEP_PATH="/home/ubuntu/.step"
-    STEP_PATH="/etc/step-ca"
-    STEP_CA_LOG="/var/log/step-ca"
+    check_network
+    require_sudo
 
-    #Check for password
-    [[ ! -f "${OLD_STEP_PATH}/secrets/password.txt" ]] && \
-    echo "Password file not found" && exit 1
+    shift
+    if [[ "$1" == "install" ]]; then
+        # STEP CA Preparation
+        OLD_STEP_PATH="/home/ubuntu/.step"
+        STEP_PATH="/etc/step-ca"
+        STEP_CA_LOG="/var/log/step-ca"
 
-    # Create new step user
-    useradd --system --home $STEP_PATH --shell /bin/false step
+        #Check for password
+        [[ ! -f "${OLD_STEP_PATH}/secrets/password.txt" ]] && \
+        echo "Password file not found" && exit 1
 
-    # Enable step-ca to bind ports lower than 1024
-    setcap CAP_NET_BIND_SERVICE=+eip $(which step-ca)
+        # Create new step user
+        useradd --system --home $STEP_PATH --shell /bin/false step
 
-    mv $OLD_STEP_PATH $STEP_PATH
-    sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/ca.json
-    sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/defaults.json
-    mkdir -p "${STEP_PATH}/db"
-    chown -R step:step $STEP_PATH
+        # Enable step-ca to bind ports lower than 1024
+        setcap CAP_NET_BIND_SERVICE=+eip $(which step-ca)
 
-    systemctl daemon-reload
-    systemctl enable --now step-ca
+        mv $OLD_STEP_PATH $STEP_PATH
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/ca.json
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/defaults.json
+        mkdir -p "${STEP_PATH}/db"
+        chown -R step:step $STEP_PATH
 
+        systemctl daemon-reload
+        systemctl enable --now step-ca
+
+    elif [[ "$1" == "" ]]; then
+        systemctl status step-ca
+    else
+        systemctl "$1" step-ca
+    fi
 }
 
 stepca_bootstrap() {
+
+    check_network
+
     STEP_PATH=$(step path)
     ROOT_CRT_PATH="${STEP_PATH}/certs/root_ca.crt"
-    STEP_CA_URL="https://stepca.multipass"
+    STEP_CA_URL="https://${STEPCA_DOMAIN}"
     PARAMS=""
     FINGERPRINT=""
 
+    shift
     [ -n "$1" ] && [ ${1:0:1} != "-" ] && FINGERPRINT=$1 || \
     (echo "Error: Fingerprint is missing" && exit 1)
     shift
-    step ca bootstrap --ca-url $STEP_CA_URL -f --install --fingerprint $FINGERPRINT
+    step ca bootstrap --ca-url $STEP_CA_URL -f --install --fingerprint $FINGERPRINT || exit 1
     
     if [[ $# -gt 0 ]]; then
         case "$1" in
@@ -112,7 +130,7 @@ stepca_bootstrap() {
                 sudo snap install certbot --classic && \
                 sudo REQUESTS_CA_BUNDLE=$ROOT_CRT_PATH \
                 certbot certonly -n --standalone \
-                    --agree-tos --email "admin@${STEP_CA_URL}" -d stepsub.multipass \
+                    --agree-tos --email "admin@${STEP_CA_URL}" -d subscriber.local \
                     --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
                 exit 0
                 ;;
@@ -124,13 +142,29 @@ stepca_bootstrap() {
     fi
 }
 
+show_creds() {
+
+    [[ $# -eq 0 ]] && require_sudo
+
+    STEP_PATH="${1:-\/etc\/step-ca}"
+    PASSWORD=$(cat ${STEP_PATH}/secrets/password.txt)
+    FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
+    cat <<CREDS
+Password is ${PASSWORD}
+Use the following command to bootstrap
+
+runstep bootstrap ${FINGERPRINT}
+
+CREDS
+}
+
 init_ca() {
+
+    check_network
+
     STEP_PATH=$(step path)
     PASSWORD_FILE="${STEP_PATH}/secrets/password.txt"
     IP_ADDR=$(hostname -I | xargs)
-
-    ORG_NAME="Step CA Tutorial"
-    DNS_ADDR="stepca.multipass"
     PROVISIONER="tokenizer"
     LISTEN=":443"
 
@@ -149,7 +183,7 @@ init_ca() {
         step ca init --ssh \
             --name $ORG_NAME \
             --provisioner $PROVISIONER \
-            --dns $DNS_ADDR \
+            --dns $STEPCA_DOMAIN \
             --address $LISTEN \
             --password-file $PASSWORD_FILE \
             --provisioner-password-file $PASSWORD_FILE
@@ -158,40 +192,43 @@ init_ca() {
 
     fi
 
-    PASSWORD=$(cat ${PASSWORD_FILE})
-    FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
-    echo "Password is ${PASSWORD}"
-    echo "Fingerprint is ${FINGERPRINT}"
-    echo "You CA link is https://${DNS_ADDR} or https://${IP_ADDR}"
+    tree "${STEP_PATH}"
+    show_creds "${STEP_PATH}"
+    echo "You CA link is https://${STEPCA_DOMAIN} or https://${IP_ADDR}"
 }
 
 uninstall_stepca() {
+    
+    check_network
+    require_sudo
+
     dpkg -r step-cli step-ca
     deluser step sudo
     userdel --remove step
-    rm -rf /var/log/step-ca/* /home/step/.step/* /tmp/step
+    rm -rf /var/log/step-ca/* /home/step/.step/ /tmp/step /etc/step-ca
 }
 
 add_completion() {
-    echo "complete -W 'install uninstall service bootstrap init follow help' runstep" >> /home/ubuntu/.bash_completion
+    echo "complete -W 'install uninstall service bootstrap start init follow creds help' runstep" >> /home/ubuntu/.bash_completion
+}
+
+start_ca() {
+    STEP_PATH=$(step path)
+    STEPCA=$(which step-ca)
+    $STEPCA $STEP_PATH/config/ca.json --password-file $STEP_PATH/secrets/password.txt
 }
 
 main() {
     case "$1" in
-        install)        check_network && require_sudo && install_stepca;;
-        uninstall)      check_network && require_sudo && uninstall_stepca;;
-        service)        check_network && require_sudo;
-                        if [[ "$2" == "install" ]]; then
-                            install_service
-                        elif [[ "$2" == "" ]]; then
-                            systemctl status step-ca
-                        else
-                            systemctl "$2" step-ca
-                        fi;;
-        bootstrap)      check_network && shift && stepca_bootstrap "$@";;
+        install)        install_stepca;;
+        uninstall)      uninstall_stepca;;
+        service)        install_service "$@";;
+        bootstrap)      stepca_bootstrap "$@";;
         completion)     add_completion;;
-        init)           check_network && init_ca;;
+        start)          start_ca;;
+        init)           init_ca;;
         follow)         journalctl -f -u step-ca;;
+        creds)          show_creds;;
         help)           show_help && exit 0;;
         *)              echo "Invalid command" && exit 1;;
     esac
