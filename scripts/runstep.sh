@@ -78,7 +78,7 @@ install_stepca() {
     # Dependencies
     apt-get update -q=2
     apt-get install -q=2 tree > /dev/null 2>&1
-    [[ "$OSTYPE" == "darwin"* ]] && apt-get install -q=2 avahi-daemon > /dev/null 2>&1
+    [ -f "/home/ubuntu/.domainfix" ] && apt-get install -q=2 avahi-daemon > /dev/null 2>&1
 
     # Install deb packages
     dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
