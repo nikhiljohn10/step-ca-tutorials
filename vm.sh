@@ -99,6 +99,7 @@ parse_params() {
 }
 
 process_vm() {
+    [[ "$OSTYPE" == "darwin"* ]] && STEPCA_TLD="local"
     [[ $FORCED_NEW_VM -eq 0 ]] && delete_vm
     if [[ $VM_EXISTS -eq 1 ]] ; then
         echo "Starting a new virtual instance of Ubuntu"
@@ -112,7 +113,7 @@ process_vm() {
         fi
 
         if [ "$RUN_STEP_CA" == "0" ]; then
-
+            [[ "$OSTYPE" == "darwin"* ]] && $MULTIPASS exec $VM_NAME -- touch .domainfix
             $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep
             $MULTIPASS exec $VM_NAME -- chmod 755 runstep
             $MULTIPASS exec $VM_NAME -- sudo mv runstep /usr/bin/runstep

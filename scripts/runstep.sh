@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 ORG_NAME="Step CA Tutorial"
-[[ "$OSTYPE" == "darwin"* ]] && STEPCA_TLD="local"
-STEPCA_DOMAIN="stepca.${STEPCA_TLD:=multipass}"
-SUBSCRIBER_DOMAIN="subscriber.${STEPCA_TLD:=multipass}"
+STEPCA_TLD=$([ -f "/home/ubuntu/.domainfix" ] && echo "local" || echo "multipass")
+STEPCA_DOMAIN="stepca.${STEPCA_TLD}"
+SUBSCRIBER_DOMAIN="subscriber.${STEPCA_TLD}"
 
 show_help() {
     cat << EOF
@@ -17,7 +17,7 @@ Commands:
         follow                          Follow Step CA server log
         creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
         server [-m]                     Start Web server with optional mTLS **
-        service [COMMAND]                 Manage Step CA service (Show status if no commands found) **
+        service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
 
 Service commands: install, start, stop, enable [--now], disable [--now], restart, status 
 
