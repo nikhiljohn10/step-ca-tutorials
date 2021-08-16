@@ -69,21 +69,21 @@ install_stepca() {
 
     # Download step-cli if not downloaded
     [ ! -f "${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb" ] && \
-    wget -O ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb "${GITHUB_URL}/${CLI_REPO}/releases/download/v${CLI_VER}/step-cli_${CLI_VER}_amd64.deb"
+    wget -q --show-progress -O ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb "${GITHUB_URL}/${CLI_REPO}/releases/download/v${CLI_VER}/step-cli_${CLI_VER}_amd64.deb"
 
     # Download step-ca if not downloaded
     [ ! -f "${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb" ] && \
-    wget -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
+    wget -q --show-progress -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
 
     # Dependencies
     apt-get update -q=2
-    apt-get install -q=2 tree
-    [[ "$OSTYPE" == "darwin"* ]] && apt-get install -q=2 avahi-daemon
+    apt-get install -q=2 tree > /dev/null 2>&1
+    [[ "$OSTYPE" == "darwin"* ]] && apt-get install -q=2 avahi-daemon > /dev/null 2>&1
 
     # Install deb packages
-    dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb && \
-    dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb && \
-    bind_port_permission    
+    dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
+    dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
+    bind_port_permission
 }
 
 show_creds() {
@@ -98,7 +98,7 @@ Password is ${PASSWORD}
 Run the following in server:
 sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
 
-Run the following in client
+Run the following in client:
 runstep bootstrap ${FINGERPRINT} && curl https://${SUBSCRIBER_DOMAIN}
 
 CREDS
