@@ -1,5 +1,4 @@
 package_update: true
-package_upgrade: true
 packages: [tree]
 write_files:
 - path: /etc/systemd/resolved.conf
@@ -19,6 +18,6 @@ write_files:
 
 runcmd:
 - systemctl restart systemd-resolved.service
-- systemctl start mdns@enp0s2.service
-- systemctl enable mdns@enp0s2.service
+- "for interface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo); do systemctl start mdns@$interface.service; done"
+- "for interface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo); do systemctl enable mdns@$interface.service; done"
 - sudo -u ubuntu touch /home/ubuntu/.domainfix
