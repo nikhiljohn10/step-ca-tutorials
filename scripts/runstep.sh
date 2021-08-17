@@ -4,6 +4,10 @@ ORG_NAME="Step CA Tutorial"
 HOSTDOMAIN="$(hostname).local"
 STEP_CA_URL="https://stepca.local"
 SERVER_URL="https://subscriber.local"
+EMAIL_ID="admin@$(hostname)"
+CERTBOT_PATH="/etc/letsencrypt/live/${HOSTDOMAIN}"
+HOST_CERT="${CERTBOT_PATH}/fullchain.pem"
+HOST_KEY="${CERTBOT_PATH}/privkey.pem"
 
 show_help() {
     cat << EOF
@@ -15,6 +19,7 @@ Commands:
         init                            Initialise Step CA
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA
         follow                          Follow Step CA server log
+        certbot                         Run certbot and obtain client certificate from stepca **
         certificate                     Generate client certificate
         creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
         server [-m]                     Start Web server with optional mTLS **
@@ -40,6 +45,14 @@ check_network() {
             echo "Unable to resolve DNS"
         exit 1
     fi
+}
+
+check_certbot() {
+
+    require_sudo
+
+    ! type certbot > /dev/null 2>&1 && \
+        snap install certbot --classic
 }
 
 bind_port_permission() {
@@ -194,10 +207,10 @@ stepca_bootstrap() {
     if [[ $# -gt 0 ]]; then
         case "$1" in
             -c|--certbot)
-                sudo snap install certbot --classic && \
-                sudo REQUESTS_CA_BUNDLE="${STEP_PATH}/certs/root_ca.crt" \
+                check_certbot
+                REQUESTS_CA_BUNDLE="${STEP_PATH}/certs/root_ca.crt" \
                 certbot certonly -n --standalone \
-                    --agree-tos --email "admin@${STEP_CA_URL}" -d $HOSTDOMAIN \
+                    --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
                     --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
                 exit 0
                 ;;
@@ -207,6 +220,35 @@ stepca_bootstrap() {
                 ;;
         esac
     fi
+}
+
+run_certbot() {
+    
+    check_network
+    require_sudo
+    check_certbot
+
+    STEP_PATH="/home/ubuntu/.step"
+    if [ ! -f "$STEP_PATH/certs/root_ca.crt" ]; then
+        STEP_PATH="/etc/step-ca"
+        [ ! -f "$STEP_PATH/certs/root_ca.crt" ] && \
+            STEP_PATH="/root/.step"
+    fi
+
+    REQUESTS_CA_BUNDLE="$STEP_PATH/certs/root_ca.crt" \
+        certbot certonly -n --standalone --agree-tos \
+        --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
+        --server "${STEP_CA_URL}/acme/acme/directory"
+    
+    mkdir -p $STEP_PATH/secrets
+    install -o ubuntu -g ubuntu -m 0600 "$HOST_CERT" "$STEP_PATH/certs"
+    install -o ubuntu -g ubuntu -m 0600 "$HOST_KEY" "$STEP_PATH/secrets"
+    cat <<EOF
+
+Run the following command to visit the HTTPS website using mTLS:
+curl $SERVER_URL --cert $STEP_PATH/certs/fullchain.pem --key $STEP_PATH/secrets/privkey.pem
+
+EOF
 }
 
 uninstall_stepca() {
@@ -223,7 +265,7 @@ uninstall_stepca() {
 add_completion() {
     BC_FILE="/home/ubuntu/.bash_completion"
     ([ -f "$BC_FILE" ] && grep -q runstep $BC_FILE) || \
-    echo "complete -W 'install uninstall service bootstrap start certificate server init follow creds help' runstep" >> $BC_FILE
+    echo "complete -W 'install uninstall service bootstrap start certbot certificate server init follow creds help' runstep" >> $BC_FILE
 }
 
 start_ca() {
@@ -238,14 +280,12 @@ run_server() {
     require_sudo
 
     ROOT_CERT="$(step path)/certs/root_ca.crt"
-    SERVER_CERT="/etc/letsencrypt/live/${HOSTDOMAIN}/fullchain.pem"
-    SERVER_KEY="/etc/letsencrypt/live/${HOSTDOMAIN}/privkey.pem"
     SERVER=$(which server)
 
     bind_port_permission $SERVER
     [ "$1" == "-m" ] && \
-        $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $SERVER_CERT -k $SERVER_KEY -m || \
-            $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $SERVER_CERT -k $SERVER_KEY
+        $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY -m || \
+            $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY
 }
 
 get_client_certificate() {
@@ -270,6 +310,7 @@ main() {
         bootstrap)      stepca_bootstrap "$@";;
         completion)     add_completion;;
         server)         run_server "$2";;
+        certbot)        run_certbot;;
         certificate)    get_client_certificate;;
         start)          start_ca;;
         init)           init_ca;;
