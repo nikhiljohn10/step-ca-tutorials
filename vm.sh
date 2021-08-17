@@ -94,20 +94,13 @@ process_vm() {
     [[ $FORCED_NEW_VM -eq 0 ]] && delete_vm
     if [[ $VM_EXISTS -eq 1 ]] ; then
         echo "Starting a new virtual instance of Ubuntu"
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            $MULTIPASS launch -n $VM_NAME --cloud-init "$(pwd)/utils/config.yaml" && \
-                echo "VM ${VM_NAME} installed" || exit 1
-        else
-            $MULTIPASS launch -n $VM_NAME && \
-                echo "VM ${VM_NAME} installed" || exit 1
-        fi
+        $MULTIPASS launch -n $VM_NAME --cloud-init "$(pwd)/utils/config.yaml" && \
+            echo "VM ${VM_NAME} installed" || exit 1
 
-        if [ "$UPGRADE_VM" == "0" ]; then
-            echo "Updating ubuntu"
-            $MULTIPASS exec $VM_NAME -- sudo apt-get update -q=2 && \
+        [ "$UPGRADE_VM" == "0" ] && \
+            echo "Updating ubuntu" && \
                 $MULTIPASS exec $VM_NAME -- sudo apt-get upgrade -q=2 && \
-                echo "Ubuntu is upgraded"
-        fi
+                    echo "Ubuntu is updated"
 
         if [ "$RUN_STEP_CA" == "0" ]; then
             $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep

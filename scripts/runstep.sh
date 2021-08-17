@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
 ORG_NAME="Step CA Tutorial"
-STEPCA_TLD=$([ -f "/home/ubuntu/.domainfix" ] && echo "local" || echo "multipass")
-STEPCA_DOMAIN="stepca.${STEPCA_TLD}"
-SUBSCRIBER_DOMAIN="subscriber.${STEPCA_TLD}"
+HOSTDOMAIN="$(hostname).local"
+STEP_CA_URL="https://stepca.local"
 
 show_help() {
     cat << EOF
@@ -15,6 +14,7 @@ Commands:
         init                            Initialise Step CA
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA
         follow                          Follow Step CA server log
+        certificate                     Generate client certificate
         creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
         server [-m]                     Start Web server with optional mTLS **
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
@@ -34,11 +34,9 @@ require_sudo() {
 
 check_network() {
     if ! wget -q --spider https://google.com; then
-        if ! wget -q --spider 1.1.1.1; then
-            echo "Network is not connected"
-        else
+        ! wget -q --spider 1.1.1.1 && \
+            echo "Network is not connected" || \
             echo "Unable to resolve DNS"
-        fi
         exit 1
     fi
 }
@@ -96,7 +94,7 @@ Run the following in server:
 sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
 
 Run the following in client:
-runstep bootstrap ${FINGERPRINT} && curl https://${SUBSCRIBER_DOMAIN}
+runstep bootstrap ${FINGERPRINT} && curl https://${HOSTDOMAIN}
 
 CREDS
 }
@@ -122,14 +120,14 @@ init_ca() {
         else
             echo "Need OpenSSL or GPG to genereate password"
         fi
-
-        step ca init --ssh \
-            --name $ORG_NAME \
-            --provisioner $PROVISIONER \
-            --dns $STEPCA_DOMAIN \
-            --address $LISTEN \
-            --password-file $PASSWORD_FILE \
-            --provisioner-password-file $PASSWORD_FILE
+        
+        step ca init \
+            --name "$ORG_NAME" \
+            --provisioner "$PROVISIONER" \
+            --dns "$HOSTDOMAIN" \
+            --address "$LISTEN" \
+            --password-file "$PASSWORD_FILE" \
+            --provisioner-password-file "$PASSWORD_FILE"
 
         step ca provisioner add acme --type ACME
 
@@ -153,7 +151,6 @@ install_service() {
 
         # Create new step user
         useradd --system --home $STEP_PATH --shell /bin/false step
-
 
         mv $OLD_STEP_PATH $STEP_PATH
         sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/ca.json
@@ -180,7 +177,6 @@ stepca_bootstrap() {
     check_network
 
     STEP_PATH=$(step path)
-    STEP_CA_URL="https://${STEPCA_DOMAIN}"
     FINGERPRINT=""
 
     shift
@@ -195,7 +191,7 @@ stepca_bootstrap() {
                 sudo snap install certbot --classic && \
                 sudo REQUESTS_CA_BUNDLE="${STEP_PATH}/certs/root_ca.crt" \
                 certbot certonly -n --standalone \
-                    --agree-tos --email "admin@${STEP_CA_URL}" -d $SUBSCRIBER_DOMAIN \
+                    --agree-tos --email "admin@${STEP_CA_URL}" -d $HOSTDOMAIN \
                     --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
                 exit 0
                 ;;
@@ -221,7 +217,7 @@ uninstall_stepca() {
 add_completion() {
     BC_FILE="/home/ubuntu/.bash_completion"
     ([ -f "$BC_FILE" ] && grep -q runstep $BC_FILE) || \
-    echo "complete -W 'install uninstall service bootstrap start server init follow creds help' runstep" >> $BC_FILE
+    echo "complete -W 'install uninstall service bootstrap start certificate server init follow creds help' runstep" >> $BC_FILE
 }
 
 start_ca() {
@@ -236,13 +232,20 @@ run_server() {
     require_sudo
 
     ROOT_CERT="$(step path)/certs/root_ca.crt"
-    SERVER_CERT="/etc/letsencrypt/live/${SUBSCRIBER_DOMAIN}/fullchain.pem"
-    SERVER_KEY="/etc/letsencrypt/live/${SUBSCRIBER_DOMAIN}/privkey.pem"
+    SERVER_CERT="/etc/letsencrypt/live/${HOSTDOMAIN}/fullchain.pem"
+    SERVER_KEY="/etc/letsencrypt/live/${HOSTDOMAIN}/privkey.pem"
     SERVER=$(which server)
 
-    [[ $# -gt 0 ]] && [[ "$1" == "-m" ]] && set -- "-m"
     bind_port_permission $SERVER
-    $SERVER -d $SUBSCRIBER_DOMAIN -r $ROOT_CERT -c $SERVER_CERT -k $SERVER_KEY "$@"
+    [ "$1" == "-m" ] && \
+        $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $SERVER_CERT -k $SERVER_KEY -m || \
+            $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $SERVER_CERT -k $SERVER_KEY
+}
+
+get_client_certificate() {
+    STEP_PATH=$(step path)
+    mkdir -p $STEP_PATH/secrets
+    step ca certificate $HOSTDOMAIN $STEP_PATH/certs/client.crt $STEP_PATH/secrets/client.key
 }
 
 main() {
@@ -252,7 +255,8 @@ main() {
         service)        install_service "$@";;
         bootstrap)      stepca_bootstrap "$@";;
         completion)     add_completion;;
-        server)         run_server;;
+        server)         run_server "$2";;
+        certificate)    get_client_certificate;;
         start)          start_ca;;
         init)           init_ca;;
         follow)         journalctl -f -u step-ca;;

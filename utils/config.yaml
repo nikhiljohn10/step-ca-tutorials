@@ -20,4 +20,3 @@ runcmd:
 - systemctl restart systemd-resolved.service
 - "for interface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo); do systemctl start mdns@$interface.service; done"
 - "for interface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo); do systemctl enable mdns@$interface.service; done"
-- sudo -u ubuntu touch /home/ubuntu/.domainfix
