@@ -75,11 +75,6 @@ install_stepca() {
     [ ! -f "${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb" ] && \
     wget -q --show-progress -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
 
-    # Dependencies
-    apt-get update -q=2
-    apt-get install -q=2 tree > /dev/null 2>&1
-    [ -f "/home/ubuntu/.domainfix" ] && apt-get install -q=2 avahi-daemon > /dev/null 2>&1
-
     # Install deb packages
     dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
     dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
@@ -94,7 +89,9 @@ show_creds() {
     PASSWORD=$(cat ${STEP_PATH}/secrets/password.txt)
     FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
     cat <<CREDS
+
 Password is ${PASSWORD}
+
 Run the following in server:
 sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
 
