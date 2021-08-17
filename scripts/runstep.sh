@@ -3,6 +3,7 @@
 ORG_NAME="Step CA Tutorial"
 HOSTDOMAIN="$(hostname).local"
 STEP_CA_URL="https://stepca.local"
+SERVER_URL="https://subscriber.local"
 
 show_help() {
     cat << EOF
@@ -94,7 +95,12 @@ Run the following in server:
 sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
 
 Run the following in client:
-runstep bootstrap ${FINGERPRINT} && curl https://${HOSTDOMAIN}
+runstep bootstrap ${FINGERPRINT} && curl ${SERVER_URL}
+
+To access mTLS server, use following command to obtain client certificate:
+runstep certificate
+
+(Choose JWK provisioner key. Then copy the above password and pasted it where it is requested.)
 
 CREDS
 }
@@ -245,7 +251,15 @@ run_server() {
 get_client_certificate() {
     STEP_PATH=$(step path)
     mkdir -p $STEP_PATH/secrets
-    step ca certificate $HOSTDOMAIN $STEP_PATH/certs/client.crt $STEP_PATH/secrets/client.key
+    CLIENT_CERT="$STEP_PATH/certs/client.crt"
+    CLIENT_KEY="$STEP_PATH/secrets/client.key"
+    step ca certificate $HOSTDOMAIN $CLIENT_CERT $CLIENT_KEY || exit 1
+    cat <<EOF
+
+Run the following command to visit the HTTPS website using mTLS:
+curl $SERVER_URL --cert $CLIENT_CERT --key $CLIENT_KEY
+
+EOF
 }
 
 main() {
