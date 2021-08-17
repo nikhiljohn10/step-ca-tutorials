@@ -26,7 +26,7 @@ check_network() {
 
 show_help() {
     cat << EOF
-Usage: ./vm <name> [options]
+Usage: ${0:-vm.sh} <name> [options]
 Options:
          -c,--step-ca    Install step ca inside vm
          -s,--serve      Run step ca server if --step-ca options is given
