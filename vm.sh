@@ -10,20 +10,16 @@ VM_EXISTS=1
 FORCED_NEW_VM=1
 
 check_multipass() {
-    if ! type multipass > /dev/null 2>&1; then
-        echo "Multipass is not installed"
-        exit 1
-    fi
+    ! type multipass > /dev/null 2>&1 && \
+        echo "Multipass is not installed" && exit 1
     MULTIPASS=$(which multipass)
 }
 
 check_network() {
     if ! wget -q --spider https://google.com; then
-        if ! wget -q --spider 1.1.1.1; then
-            echo "Network is not connected"
-        else
+        ! wget -q --spider 1.1.1.1 && \
+            echo "Network is not connected" || \
             echo "Unable to resolve DNS"
-        fi
         exit 1
     fi
 }
@@ -41,18 +37,14 @@ EOF
 }
 
 verify_vm() {
-    if [[ "${VM_NAME}" =~ [^a-zA-Z] ]]; then
-    echo "Invalid VM name. It should only contain alphabets."
-    exit 1
-    else
+    [[ "${VM_NAME}" =~ [^a-zA-Z] ]] && \
+        (echo "Invalid VM name. It should only contain alphabets." && exit 1) || \
         shift
-    fi
     VM_EXISTS=$($MULTIPASS ls | grep $VM_NAME > /dev/null 2>&1; echo $?)
 }
 
 delete_vm() {
-    $MULTIPASS delete $VM_NAME -p && \
-    echo "Successfully removed $VM_NAME" || exit 1
+    $MULTIPASS delete $VM_NAME -p && echo "Successfully removed $VM_NAME"
     VM_EXISTS=1
 }
 
@@ -95,25 +87,29 @@ parse_params() {
                 ;;
         esac
     done
-    eval set -- "$PARAMS"
+    set -- "$PARAMS"
 }
 
 process_vm() {
-    [[ "$OSTYPE" == "darwin"* ]] && STEPCA_TLD="local"
     [[ $FORCED_NEW_VM -eq 0 ]] && delete_vm
     if [[ $VM_EXISTS -eq 1 ]] ; then
         echo "Starting a new virtual instance of Ubuntu"
-        $MULTIPASS launch -n $VM_NAME && echo "VM ${VM_NAME} installed" || exit 1
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            $MULTIPASS launch -n $VM_NAME --cloud-init "$(pwd)/utils/config.yaml" && \
+                echo "VM ${VM_NAME} installed" || exit 1
+        else
+            $MULTIPASS launch -n $VM_NAME && \
+                echo "VM ${VM_NAME} installed" || exit 1
+        fi
 
         if [ "$UPGRADE_VM" == "0" ]; then
             echo "Updating ubuntu"
             $MULTIPASS exec $VM_NAME -- sudo apt-get update -q=2 && \
-            $MULTIPASS exec $VM_NAME -- sudo apt-get upgrade -q=2 && \
-            echo "Ubuntu is upgraded"
+                $MULTIPASS exec $VM_NAME -- sudo apt-get upgrade -q=2 && \
+                echo "Ubuntu is upgraded"
         fi
 
         if [ "$RUN_STEP_CA" == "0" ]; then
-            [[ "$OSTYPE" == "darwin"* ]] && $MULTIPASS exec $VM_NAME -- touch .domainfix
             $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep
             $MULTIPASS exec $VM_NAME -- chmod 755 runstep
             $MULTIPASS exec $VM_NAME -- sudo mv runstep /usr/bin/runstep
@@ -121,7 +117,7 @@ process_vm() {
 
             echo "Installing step-cli and step-ca"
             $MULTIPASS exec $VM_NAME -- sudo runstep install && \
-            echo "Successfully installed step-cli and step-ca"
+                echo "Successfully installed step-cli and step-ca"
 
             if [ "$SERVE_HTTPS" == "0" ]; then
                 $MULTIPASS transfer scripts/server.py $VM_NAME:server

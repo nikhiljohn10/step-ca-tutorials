@@ -1,0 +1,24 @@
+package_update: true
+package_upgrade: true
+packages: [tree]
+write_files:
+- path: /etc/systemd/resolved.conf
+  append: true
+  content: |
+    MulticastDNS=yes
+
+- path: /etc/systemd/system/mdns@.service
+  content: |
+    [Service]
+    Type=oneshot
+    ExecStart=/usr/bin/systemd-resolve --set-mdns=yes --interface=%i
+    After=sys-subsystem-net-devices-%i.device
+
+    [Install]
+    WantedBy=sys-subsystem-net-devices-%i.device
+
+runcmd:
+- systemctl restart systemd-resolved.service
+- systemctl start mdns@enp0s2.service
+- systemctl enable mdns@enp0s2.service
+- sudo -u ubuntu touch /home/ubuntu/.domainfix
