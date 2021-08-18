@@ -15,15 +15,15 @@ Usage: runstep <command>
 Commands:
         install                         Install Step CA **
         uninstall                       Uninstall Step CA **
-        start                           Start Step CA server
         init                            Initialise Step CA
-        bootstrap FINGERPRINT [-c]      Bootstrap Step CA
+        service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
         follow                          Follow Step CA server log
+        start                           Start Step CA server
+        creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
+        bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
+        server [-m]                     Run python web server with optional mTLS **
         certbot                         Run certbot and obtain client certificate from stepca **
         certificate                     Generate client certificate
-        creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
-        server [-m]                     Start Web server with optional mTLS **
-        service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
 
 Service commands: install, start, stop, enable [--now], disable [--now], restart, status 
 
@@ -65,6 +65,40 @@ bind_port_permission() {
     setcap CAP_NET_BIND_SERVICE=+eip $PROGRAM
 }
 
+show_creds() {
+
+    [[ $# -eq 0 ]] && require_sudo
+
+    STEP_PATH="${1:-\/etc\/step-ca}"
+    PASSWORD=$(cat ${STEP_PATH}/secrets/password.txt)
+    FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
+    cat <<CREDS
+
+Run the following in server:
+sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
+
+Run the following in client:
+runstep bootstrap ${FINGERPRINT} && curl ${SERVER_URL}
+
+To access mTLS server, use one of the following commands to obtain client certificate:
+
+1. runstep certificate
+
+JWK Provisioner password is ${PASSWORD}
+(Choose JWK provisioner key. Then copy the above password and pasted it where it is requested.)
+
+2. sudo runstep certbot
+(Certbot will manage all certificates and provide command to access server)
+
+CREDS
+}
+
+add_completion() {
+    BC_FILE="/home/ubuntu/.bash_completion"
+    ([ -f "$BC_FILE" ] && grep -q runstep $BC_FILE) || \
+    echo "complete -W 'install uninstall service bootstrap start certbot certificate server init follow creds help' runstep" >> $BC_FILE
+}
+
 install_stepca() {
 
     check_network
@@ -93,29 +127,15 @@ install_stepca() {
     bind_port_permission
 }
 
-show_creds() {
+uninstall_stepca() {
+    
+    check_network
+    require_sudo
 
-    [[ $# -eq 0 ]] && require_sudo
-
-    STEP_PATH="${1:-\/etc\/step-ca}"
-    PASSWORD=$(cat ${STEP_PATH}/secrets/password.txt)
-    FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
-    cat <<CREDS
-
-Password is ${PASSWORD}
-
-Run the following in server:
-sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
-
-Run the following in client:
-runstep bootstrap ${FINGERPRINT} && curl ${SERVER_URL}
-
-To access mTLS server, use following command to obtain client certificate:
-runstep certificate
-
-(Choose JWK provisioner key. Then copy the above password and pasted it where it is requested.)
-
-CREDS
+    dpkg -r step-cli step-ca
+    deluser step sudo
+    userdel --remove step
+    rm -rf /var/log/step-ca/* /home/step/.step/ /tmp/step /etc/step-ca
 }
 
 init_ca() {
@@ -191,6 +211,12 @@ install_service() {
     
 }
 
+start_ca() {
+    STEP_PATH=$(step path)
+    STEPCA=$(which step-ca)
+    $STEPCA $STEP_PATH/config/ca.json --password-file $STEP_PATH/secrets/password.txt
+}
+
 stepca_bootstrap() {
 
     check_network
@@ -222,6 +248,20 @@ stepca_bootstrap() {
     fi
 }
 
+run_server() {
+    
+    check_network
+    require_sudo
+
+    ROOT_CERT="$(step path)/certs/root_ca.crt"
+    SERVER=$(which server)
+
+    bind_port_permission $SERVER
+    [ "$1" == "-m" ] && \
+        $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY -m || \
+            $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY
+}
+
 run_certbot() {
     
     check_network
@@ -249,43 +289,6 @@ Run the following command to visit the HTTPS website using mTLS:
 curl $SERVER_URL --cert $STEP_PATH/certs/fullchain.pem --key $STEP_PATH/secrets/privkey.pem
 
 EOF
-}
-
-uninstall_stepca() {
-    
-    check_network
-    require_sudo
-
-    dpkg -r step-cli step-ca
-    deluser step sudo
-    userdel --remove step
-    rm -rf /var/log/step-ca/* /home/step/.step/ /tmp/step /etc/step-ca
-}
-
-add_completion() {
-    BC_FILE="/home/ubuntu/.bash_completion"
-    ([ -f "$BC_FILE" ] && grep -q runstep $BC_FILE) || \
-    echo "complete -W 'install uninstall service bootstrap start certbot certificate server init follow creds help' runstep" >> $BC_FILE
-}
-
-start_ca() {
-    STEP_PATH=$(step path)
-    STEPCA=$(which step-ca)
-    $STEPCA $STEP_PATH/config/ca.json --password-file $STEP_PATH/secrets/password.txt
-}
-
-run_server() {
-    
-    check_network
-    require_sudo
-
-    ROOT_CERT="$(step path)/certs/root_ca.crt"
-    SERVER=$(which server)
-
-    bind_port_permission $SERVER
-    [ "$1" == "-m" ] && \
-        $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY -m || \
-            $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY
 }
 
 get_client_certificate() {
