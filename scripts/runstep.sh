@@ -69,9 +69,9 @@ show_creds() {
 
     [[ $# -eq 0 ]] && require_sudo
 
-    STEP_PATH="${1:-\/etc\/step-ca}"
-    PASSWORD=$(cat ${STEP_PATH}/secrets/password.txt)
-    FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt")
+    STEP_PATH="${1:-/etc/step-ca}"
+    PASSWORD=$(cat ${STEP_PATH}/secrets/password.txt || exit 1)
+    FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt" || exit 1)
     cat <<CREDS
 
 Run the following in server:
