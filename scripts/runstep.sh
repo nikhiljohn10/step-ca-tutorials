@@ -140,6 +140,7 @@ uninstall_stepca() {
 
 init_ca() {
 
+    add_completion
     check_network
 
     STEP_PATH=$(step path)

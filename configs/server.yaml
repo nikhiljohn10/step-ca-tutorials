@@ -1,0 +1,44 @@
+apt:
+  primary:
+    - arches: [default]
+      uri: http://us.archive.ubuntu.com/ubuntu/
+package_update: true
+packages: [python-certbot-apache]
+write_files:
+- path: /etc/systemd/resolved.conf
+  append: true
+  content: |
+    MulticastDNS=yes
+
+- path: /etc/systemd/system/mdns@.service
+  content: |
+    [Service]
+    Type=oneshot
+    ExecStart=/usr/bin/systemd-resolve --set-mdns=yes --interface=%i
+    After=sys-subsystem-net-devices-%i.device
+
+    [Install]
+    WantedBy=sys-subsystem-net-devices-%i.device
+
+- path: /etc/systemd/system/https-server.service
+  content: |
+    [Unit]
+    Description=A simple python https web server
+    After=network.target
+
+    [Service]
+    Type=simple
+    User=nobody
+    Group=nobody
+    Restart=always
+    ExecStart=/usr/bin/runstep server
+    StandardOutput=syslog
+    SyslogIdentifier=python-https-server
+
+    [Install]
+    WantedBy=multi-user.target
+
+runcmd:
+- systemctl restart systemd-resolved.service
+- "for interface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo); do systemctl start mdns@$interface.service; done"
+- "for interface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo); do systemctl enable mdns@$interface.service; done"

@@ -53,18 +53,18 @@ parse_params() {
 
     while (( "$#" )); do
         case "$1" in
-            -c|--step-ca)
-                RUN_STEP_CA=0
-                shift
-                ;;
-            -s|--serve)
-                SERVE_CA=0
-                shift
-                ;;
-            -p|--pyserver)
-                SERVE_HTTPS=0
-                shift
-                ;;
+            # -c|--step-ca)
+            #     RUN_STEP_CA=0
+            #     shift
+            #     ;;
+            # -s|--serve)
+            #     SERVE_CA=0
+            #     shift
+            #     ;;
+            # -p|--pyserver)
+            #     SERVE_HTTPS=0
+            #     shift
+            #     ;;
             -u|--upgrade)
                 UPGRADE_VM=0
                 shift
@@ -133,6 +133,69 @@ process_vm() {
     $MULTIPASS shell $VM_NAME
 }
 
+create_vm() {
+    echo "Starting a new virtual instance of Ubuntu"
+    $MULTIPASS launch -n $VM_NAME --cloud-init "$1" && \
+        echo "VM ${VM_NAME} installed" || exit 1
+    
+    [ "$UPGRADE_VM" == "0" ] && \
+        echo "Updating ubuntu" && \
+            $MULTIPASS exec $VM_NAME -- sudo apt-get upgrade -q=2 && \
+                echo "Ubuntu is updated"
+    
+    echo "Installing runstep"
+    $MULTIPASS transfer scripts/runstep.sh $VM_NAME:runstep
+    $MULTIPASS exec $VM_NAME -- chmod 755 runstep
+    $MULTIPASS exec $VM_NAME -- sudo mv runstep /usr/bin/runstep
+    echo "Installing step-cli and step-ca"
+    $MULTIPASS exec $VM_NAME -- sudo runstep install
+}
+
+generate() {
+    check_multipass
+    verify_vm
+    check_network
+
+    [ -z "$1" ] && echo "cloud init config parameter is empty" && exit 1
+    CONFIG=$1
+
+    parse_params $@
+    [[ $FORCED_NEW_VM -eq 0 ]] && delete_vm
+    [[ $VM_EXISTS -eq 0 ]] && echo "Virtual machine '$VM_NAME' already exists" && exit 0
+    create_vm "$CONFIG"
+}
+
+generate_ca() {
+    VM_NAME="stepca"
+    CONFIG="$(pwd)/configs/ca.yaml"
+    shift
+    generate "$CONFIG" "$@"
+    echo "Generating PKI"
+    $MULTIPASS exec $VM_NAME -- runstep init
+    echo "Installing step-ca service"
+    $MULTIPASS exec $VM_NAME -- sudo runstep service install
+}
+
+generate_server() {
+    VM_NAME="server"
+    CONFIG="$(pwd)/configs/server.yaml"
+    shift
+    generate "$CONFIG" "$@"
+    echo "Installing https-servere"
+    $MULTIPASS transfer scripts/server.py $VM_NAME:https-server
+    $MULTIPASS exec $VM_NAME -- chmod 755 https-server
+    $MULTIPASS exec $VM_NAME -- sudo mv https-server /usr/bin/https-server
+    $MULTIPASS exec $VM_NAME -- sudo systemctl daemon-reload
+    $MULTIPASS exec $VM_NAME -- sudo systemctl start https-server.service
+}
+
+generate_client() {
+    VM_NAME="client"
+    CONFIG="$(pwd)/configs/client.yaml"
+    shift
+    generate "$CONFIG" "$@"
+}
+
 main() {
     VM_NAME=$1
     check_multipass
@@ -141,12 +204,12 @@ main() {
     parse_params $@
     process_vm
 }
- 
+
 [[ $# -eq 0 ]] && show_help && exit 1
 case "$1" in
-    ca)         shift && main "stepca" -c -s $@;;
-    server)     shift && main "subscriber" -c -p $@;;
-    client)     shift && main "client" -c $@;;
+    ca)         generate_ca "$@";;
+    server)     generate_server "$@";;
+    client)     generate_client "$@";;
     reset)      check_multipass && $MULTIPASS delete --all -p && echo "Multipass is reset";;
     help)       show_help;;
     *)          main $@;;
