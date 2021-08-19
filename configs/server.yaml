@@ -1,5 +1,9 @@
+apt:
+  primary:
+    - arches: [default]
+      uri: http://us.archive.ubuntu.com/ubuntu/
 package_update: true
-packages: [tree]
+packages: [certbot]
 write_files:
 - path: /etc/systemd/resolved.conf
   append: true
@@ -15,6 +19,23 @@ write_files:
 
     [Install]
     WantedBy=sys-subsystem-net-devices-%i.device
+
+- path: /etc/systemd/system/https-server.service
+  content: |
+    [Unit]
+    Description=A simple python https web server
+    After=network.target
+
+    [Service]
+    Type=simple
+    Restart=always
+    RestartSec=5
+    ExecStart=/usr/bin/runstep server
+    StandardOutput=syslog
+    SyslogIdentifier=python-https-server
+
+    [Install]
+    WantedBy=multi-user.target
 
 runcmd:
 - systemctl restart systemd-resolved.service
