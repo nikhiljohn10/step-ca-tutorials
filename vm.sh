@@ -161,8 +161,13 @@ generate() {
 
     parse_params $@
     [[ $FORCED_NEW_VM -eq 0 ]] && delete_vm
-    [[ $VM_EXISTS -eq 0 ]] && echo "Virtual machine '$VM_NAME' already exists" && exit 0
+    [[ $VM_EXISTS -eq 0 ]] && \
+        (echo "Virtual machine '$VM_NAME' already exists" && load_shell && exit 0)
     create_vm "$CONFIG"
+}
+
+load_shell() {
+    $MULTIPASS shell $VM_NAME
 }
 
 generate_ca() {
@@ -187,6 +192,7 @@ generate_server() {
     $MULTIPASS exec $VM_NAME -- sudo mv https-server /usr/bin/https-server
     $MULTIPASS exec $VM_NAME -- sudo systemctl daemon-reload
     $MULTIPASS exec $VM_NAME -- sudo systemctl start https-server.service
+    load_shell
 }
 
 generate_client() {
@@ -194,6 +200,8 @@ generate_client() {
     CONFIG="$(pwd)/configs/client.yaml"
     shift
     generate "$CONFIG" "$@"
+    $MULTIPASS shell $VM_NAME
+    load_shell
 }
 
 main() {
