@@ -3,7 +3,7 @@ apt:
     - arches: [default]
       uri: http://us.archive.ubuntu.com/ubuntu/
 package_update: true
-packages: [python-certbot-apache]
+packages: [certbot]
 write_files:
 - path: /etc/systemd/resolved.conf
   append: true
@@ -28,9 +28,8 @@ write_files:
 
     [Service]
     Type=simple
-    User=nobody
-    Group=nobody
     Restart=always
+    RestartSec=5
     ExecStart=/usr/bin/runstep server
     StandardOutput=syslog
     SyslogIdentifier=python-https-server

@@ -3,7 +3,7 @@ apt:
     - arches: [default]
       uri: http://us.archive.ubuntu.com/ubuntu/
 package_update: true
-packages: [python-certbot-apache]
+packages: [certbot]
 write_files:
 - path: /etc/systemd/resolved.conf
   append: true
