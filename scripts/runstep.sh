@@ -3,11 +3,15 @@
 ORG_NAME="Step CA Tutorial"
 HOSTDOMAIN="$(hostname).local"
 STEP_CA_URL="https://stepca.local"
-SERVER_URL="https://subscriber.local"
+SERVER_URL="https://website.local"
+CLIENT_DOMAIN="home.local"
 EMAIL_ID="admin@$(hostname)"
-CERTBOT_PATH="/etc/letsencrypt/live/${HOSTDOMAIN}"
-HOST_CERT="${CERTBOT_PATH}/fullchain.pem"
-HOST_KEY="${CERTBOT_PATH}/privkey.pem"
+HOST_CERT="/etc/letsencrypt/live/${HOSTDOMAIN}/fullchain.pem"
+HOST_KEY="/etc/letsencrypt/live/${HOSTDOMAIN}/privkey.pem"
+declare -g ROOT_CERT
+declare -g CA_JSON
+declare -g PASSWORD_FILE
+declare -g SEARCH_FILE
 
 show_help() {
     cat << EOF
@@ -19,7 +23,7 @@ Commands:
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
         follow                          Follow Step CA server log
         start                           Start Step CA server
-        creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
+        commands [STEP PATH]            Show credentials of CA ** (default path=/etc/step-ca)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
         server [-m]                     Run python web server with optional mTLS **
         certbot                         Run certbot and obtain client certificate from stepca **
@@ -55,6 +59,40 @@ check_certbot() {
         snap install certbot --classic
 }
 
+search_file_in_step() {
+    SEARCH_FILE=""
+    [ -n "$1" ] && FILE_PATH=$1 || (echo "Invalid file path" >&2 && exit 1)
+    declare -a STEP_ROOTS=(
+        "/home/ubuntu/.step"
+        "/root/.step"
+        "/etc/step-ca"
+    )
+    for steppath in "${STEP_ROOTS[@]}"; do
+        _FILE_PATH="${steppath}${FILE_PATH}"
+        [ -f "$_FILE_PATH" ] && SEARCH_FILE=$_FILE_PATH && break
+    done
+    [ -z "$SEARCH_FILE" ] && echo "Error: Unable to find $FILE_PATH" >&2 && exit 1
+}
+
+get_root_cert() {
+    search_file_in_step "/certs/root_ca.crt"
+    ROOT_CERT=$SEARCH_FILE
+    unset SEARCH_FILE
+}
+
+get_ca_json() {
+    search_file_in_step "/config/ca.json"
+    CA_JSON=$SEARCH_FILE
+    unset SEARCH_FILE
+}
+
+get_password_txt() {
+    search_file_in_step "/secrets/password.txt"
+    PASSWORD_FILE=$SEARCH_FILE
+    unset SEARCH_FILE
+}
+
+
 bind_port_permission() {
     
     require_sudo
@@ -65,7 +103,7 @@ bind_port_permission() {
     setcap CAP_NET_BIND_SERVICE=+eip $PROGRAM
 }
 
-show_creds() {
+bootstrap_commands() {
 
     [[ $# -eq 0 ]] && require_sudo
 
@@ -74,21 +112,38 @@ show_creds() {
     FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt" || exit 1)
     cat <<CREDS
 
-Run the following in server:
-sudo runstep bootstrap ${FINGERPRINT} -c && sudo runstep server
+1. Bootstrap
+$ sudo runstep bootstrap ${FINGERPRINT}
+    ( This command initialise and bootstrap with certificarte authority)
 
-Run the following in client:
-runstep bootstrap ${FINGERPRINT} && curl ${SERVER_URL}
+2. Run certbot to obtain certificate for your system
+$ sudo runstep certbot
+    ( Certbot will manage all certificates and provide command to access server )
 
-To access mTLS server, use one of the following commands to obtain client certificate:
+3. Start https server as daemon
+$ sudo runstep server start
+    ( Start the systemd service without mTLS )
 
-1. runstep certificate
+4. Start https server as daemon
+$ sudo runstep server -m -p 8443
+    ( Start server in terminal with mTLS on port 8443 )
 
-JWK Provisioner password is ${PASSWORD}
-(Choose JWK provisioner key. Then copy the above password and pasted it where it is requested.)
+5. Request client certificate using JWK Provisioner
+$ runstep certificate
+    Password: ${PASSWORD}
+    ( Choose JWK provisioner key. Then copy the above password and pasted it where it is requested. )
 
-2. sudo runstep certbot
-(Certbot will manage all certificates and provide command to access server)
+6. Test https server from client
+$ curl ${SERVER_URL}
+    ( Connect with https server wihtout mTLS)
+$ curl ${SERVER_URL}:8443 --cert /home/ubuntu/.step/certs/${CLIENT_DOMAIN}.crt --key /home/ubuntu/.step/secrets/${CLIENT_DOMAIN}.key
+    ( Connect with https server wiht mTLS on port 8443)
+
+    ===================================
+    | Server flow:    | 1 > 2 > 3 > 4 |
+    | Client flow #1: | 1 > 2 > 6     |
+    | Client flow #2: | 1 > 5 > 6     |
+    ===================================
 
 CREDS
 }
@@ -96,7 +151,8 @@ CREDS
 add_completion() {
     BC_FILE="/home/ubuntu/.bash_completion"
     ([ -f "$BC_FILE" ] && grep -q runstep $BC_FILE) || \
-    echo "complete -W 'install uninstall service bootstrap start certbot certificate server init follow creds help' runstep" >> $BC_FILE
+    (echo "complete -W 'install uninstall service bootstrap start certbot certificate server init follow commands help' runstep" >> $BC_FILE && \
+    chown ubuntu:ubuntu "$BC_FILE" && chmod 0644 "$BC_FILE")
 }
 
 install_stepca() {
@@ -125,6 +181,7 @@ install_stepca() {
     dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
     dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
     bind_port_permission
+    add_completion
 }
 
 uninstall_stepca() {
@@ -135,28 +192,28 @@ uninstall_stepca() {
     dpkg -r step-cli step-ca
     deluser step sudo
     userdel --remove step
-    rm -rf /var/log/step-ca/* /home/step/.step/ /tmp/step /etc/step-ca
+    rm -rf /home/step/.step/ /tmp/step /etc/step-ca
 }
 
 init_ca() {
 
-    add_completion
     check_network
 
     STEP_PATH=$(step path)
-    PASSWORD_FILE="${STEP_PATH}/secrets/password.txt"
+    NEW_PASSWORD_FILE="${STEP_PATH}/secrets/password.txt"
     IP_ADDR=$(hostname -I | xargs)
-    PROVISIONER="tokenizer"
-    LISTEN=":443"
+    PROVISIONER="token-admin"
+    CA_HOST=""
+    CA_PORT="443"
 
-    if [ ! -f "${PASSWORD_FILE}" ]; then
+    if [ ! -f "${NEW_PASSWORD_FILE}" ]; then
 
         # Password generation
         mkdir -p "${STEP_PATH}/secrets"
         if type "openssl" > /dev/null 2>&1; then
-            openssl rand -base64 24 > $PASSWORD_FILE
+            openssl rand -base64 24 > $NEW_PASSWORD_FILE
         elif type "gpg" > /dev/null 2>&1; then
-            gpg --gen-random --armor 1 24 > $PASSWORD_FILE
+            gpg --gen-random --armor 1 24 > $NEW_PASSWORD_FILE
         else
             echo "Need OpenSSL or GPG to genereate password"
         fi
@@ -165,9 +222,9 @@ init_ca() {
             --name "$ORG_NAME" \
             --provisioner "$PROVISIONER" \
             --dns "$HOSTDOMAIN" \
-            --address "$LISTEN" \
-            --password-file "$PASSWORD_FILE" \
-            --provisioner-password-file "$PASSWORD_FILE"
+            --address "$CA_HOST:$CA_PORT" \
+            --password-file "$NEW_PASSWORD_FILE" \
+            --provisioner-password-file "$NEW_PASSWORD_FILE"
 
         step ca provisioner add acme --type ACME
 
@@ -202,7 +259,7 @@ install_service() {
         systemctl enable --now step-ca > /dev/null 2>&1
 
         tree "${STEP_PATH}"
-        show_creds "${STEP_PATH}"
+        bootstrap_commands "${STEP_PATH}"
 
     elif [[ "$1" == "" ]]; then
         systemctl status step-ca
@@ -213,16 +270,17 @@ install_service() {
 }
 
 start_ca() {
-    STEP_PATH=$(step path)
+
+    get_ca_json
+    get_password_txt
     STEPCA=$(which step-ca)
-    $STEPCA $STEP_PATH/config/ca.json --password-file $STEP_PATH/secrets/password.txt
+    
+    $STEPCA $CA_JSON --password-file $PASSWORD_FILE
 }
 
 stepca_bootstrap() {
 
     check_network
-
-    STEP_PATH=$(step path)
     FINGERPRINT=""
 
     shift
@@ -230,37 +288,33 @@ stepca_bootstrap() {
     (echo "Error: Fingerprint is missing" && exit 1)
     shift
     step ca bootstrap --ca-url $STEP_CA_URL -f --install --fingerprint $FINGERPRINT || exit 1
-    
-    if [[ $# -gt 0 ]]; then
-        case "$1" in
-            -c|--certbot)
-                check_certbot
-                REQUESTS_CA_BUNDLE="${STEP_PATH}/certs/root_ca.crt" \
-                certbot certonly -n --standalone \
-                    --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
-                    --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
-                exit 0
-                ;;
-            *)
-                echo "Error: Unsupported flag $1" >&2
-                exit 1
-                ;;
-        esac
-    fi
+
 }
 
 run_server() {
     
     check_network
     require_sudo
+    get_root_cert
 
-    ROOT_CERT="$(step path)/certs/root_ca.crt"
-    SERVER=$(which server)
+    SERVER=$(which https-server)
     PARAMS=""
 
     shift
     while (( "$#" )); do
         case "$1" in
+            start)
+                systemctl start https-server.service || exit 1
+                exit 0
+                ;;
+            stop)
+                systemctl stop https-server.service || exit 1
+                exit 0
+                ;;
+            status)
+                systemctl status https-server.service || exit 1
+                exit 0
+                ;;
             -m|--mlts)
                 [ -n "$PARAMS" ] && PARAMS="$PARAMS $1" || PARAMS=$1
                 shift
@@ -283,35 +337,34 @@ run_server() {
     done
     set -- "-d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY $PARAMS"
 
-    bind_port_permission $SERVER
+    bind_port_permission "$SERVER"
     $SERVER $@
 }
 
 run_certbot() {
-    
+
     check_network
     require_sudo
     check_certbot
+    get_root_cert
 
-    STEP_PATH="/home/ubuntu/.step"
-    if [ ! -f "$STEP_PATH/certs/root_ca.crt" ]; then
-        STEP_PATH="/etc/step-ca"
-        [ ! -f "$STEP_PATH/certs/root_ca.crt" ] && \
-            STEP_PATH="/root/.step"
+    if [ -f "$HOST_CERT" -a -f "$HOST_KEY" ]; then
+        REQUESTS_CA_BUNDLE="$ROOT_CERT" certbot renew || exit 1
+    else
+        REQUESTS_CA_BUNDLE="$ROOT_CERT" \
+            certbot certonly -n --standalone \
+            --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
+            --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
     fi
 
-    REQUESTS_CA_BUNDLE="$STEP_PATH/certs/root_ca.crt" \
-        certbot certonly -n --standalone --agree-tos \
-        --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
-        --server "${STEP_CA_URL}/acme/acme/directory"
-    
-    mkdir -p $STEP_PATH/secrets
-    install -o ubuntu -g ubuntu -m 0600 "$HOST_CERT" "$STEP_PATH/certs"
-    install -o ubuntu -g ubuntu -m 0600 "$HOST_KEY" "$STEP_PATH/secrets"
+    install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "/home/ubuntu/.step/certs/$HOSTDOMAIN.crt"
+    install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "/home/ubuntu/.step/secrets/$HOSTDOMAIN.key"
     cat <<EOF
 
-Run the following command to visit the HTTPS website using mTLS:
-curl $SERVER_URL --cert $STEP_PATH/certs/fullchain.pem --key $STEP_PATH/secrets/privkey.pem
+The certificate and private key is stored in following locations:
+
+    Certificate: /home/ubuntu/.step/certs/$HOSTDOMAIN.crt
+    Private Key: /home/ubuntu/.step/secrets/$HOSTDOMAIN.key
 
 EOF
 }
@@ -319,8 +372,8 @@ EOF
 get_client_certificate() {
     STEP_PATH=$(step path)
     mkdir -p $STEP_PATH/secrets
-    CLIENT_CERT="$STEP_PATH/certs/client.crt"
-    CLIENT_KEY="$STEP_PATH/secrets/client.key"
+    CLIENT_CERT="$STEP_PATH/certs/$HOSTDOMAIN.crt"
+    CLIENT_KEY="$STEP_PATH/secrets/$HOSTDOMAIN.key"
     step ca certificate $HOSTDOMAIN $CLIENT_CERT $CLIENT_KEY || exit 1
     cat <<EOF
 
@@ -336,14 +389,13 @@ main() {
         uninstall)      uninstall_stepca;;
         service)        install_service "$@";;
         bootstrap)      stepca_bootstrap "$@";;
-        completion)     add_completion;;
         server)         run_server "$@";;
         certbot)        run_certbot;;
         certificate)    get_client_certificate;;
         start)          start_ca;;
         init)           init_ca;;
         follow)         journalctl -f -u step-ca;;
-        creds)          show_creds;;
+        commands)       bootstrap_commands;;
         help)           show_help && exit 0;;
         *)              echo "Invalid command" && exit 1;;
     esac
