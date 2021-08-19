@@ -255,11 +255,35 @@ run_server() {
 
     ROOT_CERT="$(step path)/certs/root_ca.crt"
     SERVER=$(which server)
+    PARAMS=""
+
+    shift
+    while (( "$#" )); do
+        case "$1" in
+            -m|--mlts)
+                [ -n "$PARAMS" ] && PARAMS="$PARAMS $1" || PARAMS=$1
+                shift
+                ;;
+            -p|--port)
+                ([ -z "$2" ] || [ "${2:0:1}" == "-" ] || [[ "$2" =~ ^[^0-9]+$ ]]) && \
+                (echo "Inavlid port value: $2" >&2 && exit 1)
+                [ -n "$PARAMS" ] && PARAMS="$PARAMS $1 $2" || PARAMS="$1 $2"
+                shift 2
+                ;;
+            -*|--*=)
+                echo "Error: Unsupported flag $1" >&2
+                exit 1
+                ;;
+            *)
+                echo "Error: Invalid input $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+    set -- "-d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY $PARAMS"
 
     bind_port_permission $SERVER
-    [ "$1" == "-m" ] && \
-        $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY -m || \
-            $SERVER -d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY
+    $SERVER $@
 }
 
 run_certbot() {
@@ -312,7 +336,7 @@ main() {
         service)        install_service "$@";;
         bootstrap)      stepca_bootstrap "$@";;
         completion)     add_completion;;
-        server)         run_server "$2";;
+        server)         run_server "$@";;
         certbot)        run_certbot;;
         certificate)    get_client_certificate;;
         start)          start_ca;;
