@@ -36,6 +36,14 @@ if __name__ == "__main__":
         help="Domain name",
     )
     parser.add_argument(
+        "-p",
+        "--port",
+        dest="port",
+        type=int,
+        help="Port number",
+        default=443,
+    )
+    parser.add_argument(
         "-r",
         "--cacert",
         dest="cacert",
@@ -57,11 +65,12 @@ if __name__ == "__main__":
         help="Provide your domain certificate's private key",
     )
     args = parser.parse_args()
-    server = ThreadingSimpleServer(("", 443), SimpleServer)
+    server = ThreadingSimpleServer(("", args.port), SimpleServer)
 
     MTLS: bool = args.mtls
     MTLS_ACTIVE_STRING: str = MTLS and "with" or "without"
     DOMAIN: str = args.domain or server.socket.gethostname()
+    PORT: str = args.port != 443 and f':{args.port}' or ''
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_verify_locations(cafile=args.cacert)
@@ -71,7 +80,7 @@ if __name__ == "__main__":
     with context.wrap_socket(sock=server.socket, server_side=True) as sock:
         try:
             server.socket = sock
-            print(f"Server started https://{DOMAIN} {MTLS_ACTIVE_STRING} mTLS")
+            print(f"Server started https://{DOMAIN}{PORT} {MTLS_ACTIVE_STRING} mTLS")
             server.serve_forever()
         except KeyboardInterrupt:
             pass
