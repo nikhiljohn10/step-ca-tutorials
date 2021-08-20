@@ -75,19 +75,22 @@ parse_params() {
 create_instance() {
     [[ $FORCED_NEW_INSTANCE -eq 0 ]] && delete_instance
 
-    [[ $INSTANCE_EXISTS -eq 0 ]] && \
-        (echo "Virtual machine '$INSTANCE_NAME' already exists" && load_shell && exit 0)
+    if [[ $INSTANCE_EXISTS -eq 0 ]]; then
+        echo "Virtual machine '$INSTANCE_NAME' already exists"
+        load_shell
+        exit 0
+    else
+        [ -z "$1" ] && echo "cloud init config parameter is empty" >&2 && exit 1
 
-    [ -z "$1" ] && echo "cloud init config parameter is empty" >&2 && exit 1
-
-    echo "Starting a new virtual instance of Ubuntu" && \
-        $MULTIPASS launch -n $INSTANCE_NAME --cloud-init "$1" && \
-            echo "Ubuntu instance ${INSTANCE_NAME} is installed" || exit 1
-    
-    [ "$UPGRADE_INSTANCE" == "0" ] && \
-        echo "Updating ubuntu" && \
-            $MULTIPASS exec $INSTANCE_NAME -- sudo apt-get upgrade -q=2 && \
-                echo "Ubuntu is updated"
+        echo "Starting a new virtual instance of Ubuntu" && \
+            $MULTIPASS launch -n $INSTANCE_NAME --cloud-init "$1" && \
+                echo "Ubuntu instance ${INSTANCE_NAME} is installed" || exit 1
+        
+        [ "$UPGRADE_INSTANCE" == "0" ] && \
+            echo "Updating ubuntu" && \
+                $MULTIPASS exec $INSTANCE_NAME -- sudo apt-get upgrade -q=2 && \
+                    echo "Ubuntu is updated"
+    fi
 }
 
 generate() {
@@ -140,12 +143,13 @@ generate_server() {
     shift
     generate "$CONFIG" "$@"
 
-    echo "Installing https-servere"
+    echo "Installing https-server"
     $MULTIPASS transfer scripts/server.py $INSTANCE_NAME:https-server
     $MULTIPASS exec $INSTANCE_NAME -- chmod 755 https-server
     $MULTIPASS exec $INSTANCE_NAME -- sudo mv https-server /usr/bin/https-server
+    echo "Loading https-server service"
     $MULTIPASS exec $INSTANCE_NAME -- sudo systemctl daemon-reload
-    $MULTIPASS exec $INSTANCE_NAME -- sudo systemctl enable https-server.service
+    $MULTIPASS exec $INSTANCE_NAME -- sudo runstep server enable
     load_shell
 }
 

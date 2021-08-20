@@ -8,6 +8,9 @@ CLIENT_DOMAIN="home.local"
 EMAIL_ID="admin@$(hostname)"
 HOST_CERT="/etc/letsencrypt/live/${HOSTDOMAIN}/fullchain.pem"
 HOST_KEY="/etc/letsencrypt/live/${HOSTDOMAIN}/privkey.pem"
+HOME_STEP_PATH="/home/ubuntu/.step"
+ROOT_STEP_PATH="/etc/step-ca"
+
 declare -g ROOT_CERT
 declare -g CA_JSON
 declare -g PASSWORD_FILE
@@ -23,9 +26,9 @@ Commands:
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
         follow                          Follow Step CA server log
         start                           Start Step CA server
-        commands [STEP PATH]            Show credentials of CA ** (default path=/etc/step-ca)
+        commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
-        server [-m] [-p|--port PORT]    Run python web server with optional mTLS **
+        server [-m] [-p|--port PORT]    Run https server with optional mTLS **
         server COMMAND                  Manage https server service using systemctl commands **
         certbot                         Run certbot and obtain client certificate from stepca **
         certificate                     Generate client certificate
@@ -87,7 +90,7 @@ get_ca_json() {
     unset SEARCH_FILE
 }
 
-get_password_txt() {
+get_password_file() {
     search_file_in_step "/secrets/password.txt"
     PASSWORD_FILE=$SEARCH_FILE
     unset SEARCH_FILE
@@ -106,15 +109,15 @@ bind_port_permission() {
 
 bootstrap_commands() {
 
-    [[ $# -eq 0 ]] && require_sudo
+    get_root_cert
+    get_password_file
 
-    STEP_PATH="${1:-/etc/step-ca}"
-    PASSWORD=$(cat ${STEP_PATH}/secrets/password.txt || exit 1)
-    FINGERPRINT=$(step certificate fingerprint "${STEP_PATH}/certs/root_ca.crt" || exit 1)
+    PASSWORD=$(cat $PASSWORD_FILE || exit 1)
+    FINGERPRINT=$(step certificate fingerprint "${$ROOT_CERT}" || exit 1)
     cat <<CREDS
 
 1. Bootstrap
-$ sudo runstep bootstrap ${FINGERPRINT}
+$ runstep bootstrap ${FINGERPRINT}
     ( This command initialise and bootstrap with certificarte authority)
 
 2. Run certbot to obtain certificate for your system
@@ -137,7 +140,7 @@ $ runstep certificate
 6. Test https server from client
 $ curl ${SERVER_URL}
     ( Connect with https server wihtout mTLS)
-$ curl ${SERVER_URL}:8443 --cert /home/ubuntu/.step/certs/${CLIENT_DOMAIN}.crt --key /home/ubuntu/.step/secrets/${CLIENT_DOMAIN}.key
+$ curl ${SERVER_URL}:8443 --cert ${HOME_STEP_PATH}/certs/${CLIENT_DOMAIN}.crt --key ${HOME_STEP_PATH}/secrets/${CLIENT_DOMAIN}.key
     ( Connect with https server wiht mTLS on port 8443)
 
     ===================================
@@ -193,15 +196,14 @@ uninstall_stepca() {
     dpkg -r step-cli step-ca
     deluser step sudo
     userdel --remove step
-    rm -rf /home/step/.step/ /tmp/step /etc/step-ca
+    rm -rf $HOME_STEP_PATH $ROOT_STEP_PATH /tmp/step
 }
 
 init_ca() {
 
     check_network
 
-    STEP_PATH=$(step path)
-    NEW_PASSWORD_FILE="${STEP_PATH}/secrets/password.txt"
+    NEW_PASSWORD_FILE="${HOME_STEP_PATH}/secrets/password.txt"
     IP_ADDR=$(hostname -I | xargs)
     PROVISIONER="token-admin"
     CA_HOST=""
@@ -210,7 +212,7 @@ init_ca() {
     if [ ! -f "${NEW_PASSWORD_FILE}" ]; then
 
         # Password generation
-        mkdir -p "${STEP_PATH}/secrets"
+        mkdir -p "${HOME_STEP_PATH}/secrets"
         if type "openssl" > /dev/null 2>&1; then
             openssl rand -base64 24 > $NEW_PASSWORD_FILE
         elif type "gpg" > /dev/null 2>&1; then
@@ -240,27 +242,27 @@ install_service() {
     shift
     if [[ "$1" == "install" ]]; then
         # STEP CA Preparation
-        OLD_STEP_PATH="/home/ubuntu/.step"
-        STEP_PATH="/etc/step-ca"
+        STEP_PATH="$ROOT_STEP_PATH"
 
         #Check for password
-        [[ ! -f "${OLD_STEP_PATH}/secrets/password.txt" ]] && \
+        [[ ! -f "${HOME_STEP_PATH}/secrets/password.txt" ]] && \
         echo "Password file not found" && exit 1
 
         # Create new step user
-        useradd --system --home $STEP_PATH --shell /bin/false step
+        useradd --system --home $ROOT_STEP_PATH --shell /bin/false step
 
-        mv $OLD_STEP_PATH $STEP_PATH
-        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/ca.json
-        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $STEP_PATH/config/defaults.json
-        mkdir -p "${STEP_PATH}/db"
-        chown -R step:step $STEP_PATH
+        mv $HOME_STEP_PATH $ROOT_STEP_PATH
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $ROOT_STEP_PATH/config/ca.json
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $ROOT_STEP_PATH/config/defaults.json
+        mkdir -p "${ROOT_STEP_PATH}/db"
+        chown -R step:step $ROOT_STEP_PATH
+        chmod -R 644 $ROOT_STEP_PATH/certs
 
         systemctl daemon-reload
         systemctl enable --now step-ca > /dev/null 2>&1
 
-        tree "${STEP_PATH}"
-        bootstrap_commands "${STEP_PATH}"
+        tree "${ROOT_STEP_PATH}"
+        bootstrap_commands "${ROOT_STEP_PATH}"
 
     elif [[ "$1" == "" ]]; then
         systemctl status step-ca
@@ -273,7 +275,7 @@ install_service() {
 start_ca() {
 
     get_ca_json
-    get_password_txt
+    get_password_file
     STEPCA=$(which step-ca)
     
     $STEPCA $CA_JSON --password-file $PASSWORD_FILE
@@ -296,16 +298,13 @@ run_server() {
     
     check_network
     require_sudo
-    get_root_cert
 
-    SERVER=$(which https-server)
     PARAMS=""
-
     shift
     while (( "$#" )); do
         case "$1" in
             start|stop|status|enable|disable|restart)
-                systemctl "$1" https-server.service || exit 1
+                systemctl "$1" https-server.service 1>/dev/null || exit 1
                 exit 0
                 ;;
             -m|--mlts)
@@ -328,6 +327,9 @@ run_server() {
                 ;;
         esac
     done
+
+    get_root_cert
+    SERVER=$(which https-server)
     set -- "-d $HOSTDOMAIN -r $ROOT_CERT -c $HOST_CERT -k $HOST_KEY $PARAMS"
 
     bind_port_permission "$SERVER"
@@ -350,23 +352,23 @@ run_certbot() {
             --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
     fi
 
-    install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "/home/ubuntu/.step/certs/$HOSTDOMAIN.crt"
-    install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "/home/ubuntu/.step/secrets/$HOSTDOMAIN.key"
+    install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt"
+    install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "${HOME_STEP_PATH}/secrets/$HOSTDOMAIN.key"
+    chown -R ubuntu:ubuntu "${HOME_STEP_PATH}"
     cat <<EOF
 
 The certificate and private key is stored in following locations:
 
-    Certificate: /home/ubuntu/.step/certs/$HOSTDOMAIN.crt
-    Private Key: /home/ubuntu/.step/secrets/$HOSTDOMAIN.key
+    Certificate: ${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt
+    Private Key: ${HOME_STEP_PATH}/secrets/$HOSTDOMAIN.key
 
 EOF
 }
 
 get_client_certificate() {
-    STEP_PATH=$(step path)
-    mkdir -p $STEP_PATH/secrets
-    CLIENT_CERT="$STEP_PATH/certs/$HOSTDOMAIN.crt"
-    CLIENT_KEY="$STEP_PATH/secrets/$HOSTDOMAIN.key"
+    mkdir -p $ROOT_STEP_PATH/secrets
+    CLIENT_CERT="$ROOT_STEP_PATH/certs/$HOSTDOMAIN.crt"
+    CLIENT_KEY="$ROOT_STEP_PATH/secrets/$HOSTDOMAIN.key"
     step ca certificate $HOSTDOMAIN $CLIENT_CERT $CLIENT_KEY || exit 1
     cat <<EOF
 
