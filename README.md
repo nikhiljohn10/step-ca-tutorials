@@ -79,7 +79,7 @@ When the `step-ca.service` is installed, the step-ca path is moved from user's h
 
 #### 2. `./vm.sh server`
 
-`ubuntu@website`: Contain https server which subscribe to the CA
+`ubuntu@website` : Contain https server which subscribe to the CA
 
    1. Verify network, dependencies & instance existance
    2. Multipass generate ubuntu instance using cloud init configuration from `/configs/server.yaml`
@@ -88,7 +88,7 @@ When the `step-ca.service` is installed, the step-ca path is moved from user's h
    5. Install, enable `https-server` as service
    6. Load instance shell
 
-#### 3. `./vm.sh client` - to create vm for Client user to access webserver using Step CA Root & Client certificates. (`ubuntu@home`)
+#### 3. `./vm.sh client`
 
 `ubuntu@home` : Uses `curl` command with client and root certificates to connect with https server 
 
