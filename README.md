@@ -62,7 +62,10 @@ When the `step-ca.service` is installed, the step-ca path is moved from user's h
 
 ### Terminals
 
-#### 1. `./vm.sh ca` - to create vm for Step CA PKI (`ubuntu@stepca`)
+#### 1. `./vm.sh ca`
+
+`ubuntu@stepca` : Contains Step CA PKI
+
    1. Verify network, dependencies & instance existance
    2. Multipass generate ubuntu instance using cloud init configuration from `/configs/ca.yaml`
    3. Install `runstep` command inside the instance
@@ -74,7 +77,10 @@ When the `step-ca.service` is installed, the step-ca path is moved from user's h
    9. Install, enable & start `step-ca` server as service
    10. Display bootstrapping commands
 
-#### 2. `./vm.sh server` - to create vm for Webserver to subscribe to the Step CA server (`ubuntu@website`)
+#### 2. `./vm.sh server`
+
+`ubuntu@website`: Contain https server which subscribe to the CA
+
    1. Verify network, dependencies & instance existance
    2. Multipass generate ubuntu instance using cloud init configuration from `/configs/server.yaml`
    3. Install `runstep` command inside the instance
@@ -83,6 +89,9 @@ When the `step-ca.service` is installed, the step-ca path is moved from user's h
    6. Load instance shell
 
 #### 3. `./vm.sh client` - to create vm for Client user to access webserver using Step CA Root & Client certificates. (`ubuntu@home`)
+
+`ubuntu@home` : Uses `curl` command with client and root certificates to connect with https server 
+
    1. Verify network, dependencies & instance existance
    2. Multipass generate ubuntu instance using cloud init configuration from `/configs/client.yaml`
    3. Install `runstep` command inside the instance
@@ -153,7 +162,7 @@ You have to choose jwk token method. It will ask for a password. You can copy pa
 
 You can use the following command to display the bootstrapping process.
 ```
-runstep commands
+sudo runstep commands
 ```
 
 ## Limitation
