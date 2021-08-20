@@ -113,7 +113,7 @@ bootstrap_commands() {
     get_password_file
 
     PASSWORD=$(cat $PASSWORD_FILE || exit 1)
-    FINGERPRINT=$(step certificate fingerprint "${$ROOT_CERT}" || exit 1)
+    FINGERPRINT=$(step certificate fingerprint "${ROOT_CERT}" || exit 1)
     cat <<CREDS
 
 1. Bootstrap
@@ -241,22 +241,19 @@ install_service() {
 
     shift
     if [[ "$1" == "install" ]]; then
-        # STEP CA Preparation
-        STEP_PATH="$ROOT_STEP_PATH"
 
         #Check for password
         [[ ! -f "${HOME_STEP_PATH}/secrets/password.txt" ]] && \
         echo "Password file not found" && exit 1
 
         # Create new step user
-        useradd --system --home $ROOT_STEP_PATH --shell /bin/false step
+        useradd --system --home "$ROOT_STEP_PATH" --shell /bin/false step
 
-        mv $HOME_STEP_PATH $ROOT_STEP_PATH
-        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $ROOT_STEP_PATH/config/ca.json
-        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' $ROOT_STEP_PATH/config/defaults.json
+        mv "$HOME_STEP_PATH" "$ROOT_STEP_PATH"
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' "$ROOT_STEP_PATH/config/ca.json"
+        sed -i 's/home\/ubuntu\/\.step/etc\/step-ca/g' "$ROOT_STEP_PATH/config/defaults.json"
         mkdir -p "${ROOT_STEP_PATH}/db"
-        chown -R step:step $ROOT_STEP_PATH
-        chmod -R 644 $ROOT_STEP_PATH/certs
+        chown -R step:step "$ROOT_STEP_PATH"
 
         systemctl daemon-reload
         systemctl enable --now step-ca > /dev/null 2>&1
