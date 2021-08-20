@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import ssl
 import argparse
 from socketserver import ThreadingMixIn
@@ -73,7 +74,8 @@ class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
 if __name__ == "__main__":
 
     server = ThreadingSimpleServer(("", args.port), SimpleServer)
-    DOMAIN: str = args.domain or server.socket.gethostname()
+    HOSTNAME: str = os.uname().nodename
+    DOMAIN: str = args.domain or f"{HOSTNAME}.local"
     PORT: str = args.port != 443 and f":{args.port}" or ""
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
