@@ -1,7 +1,3 @@
-apt:
-  primary:
-    - arches: [default]
-      uri: http://us.archive.ubuntu.com/ubuntu/
 package_update: true
 packages: [certbot]
 write_files:
