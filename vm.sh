@@ -8,15 +8,15 @@ FORCED_NEW_INSTANCE=1
 
 check_multipass() {
     ! type multipass > /dev/null 2>&1 && \
-        echo "Multipass is not installed" && exit 1
+        echo "Multipass is not installed" >&2 && exit 1
     MULTIPASS=$(which multipass)
 }
 
 check_network() {
     if ! wget -q --spider https://google.com; then
         ! wget -q --spider 1.1.1.1 && \
-            echo "Network is not connected" || \
-            echo "Unable to resolve DNS"
+            echo "Network is not connected" >&2 || \
+            echo "Unable to resolve DNS" >&2
         exit 1
     fi
 }
@@ -33,7 +33,7 @@ EOF
 
 verify_instance() {
     [[ "${INSTANCE_NAME}" =~ [^a-zA-Z] ]] && \
-        (echo "Invalid instance name. It should only contain alphabets." && exit 1) || \
+        (echo "Invalid instance name. It should only contain alphabets." >&2 && exit 1) || \
         shift
     INSTANCE_EXISTS=$($MULTIPASS ls | grep $INSTANCE_NAME > /dev/null 2>&1; echo $?)
 }
@@ -99,7 +99,7 @@ generate() {
     verify_instance
     check_network
 
-    [ -z "$1" ] && echo "cloud init config parameter is empty" && exit 1
+    [ -z "$1" ] && echo "cloud init config parameter is empty" >&2 && exit 1
     CONFIG=$1 && shift
     parse_params $@
     create_instance "$CONFIG"
@@ -149,6 +149,7 @@ generate_client() {
 }
 
 main() {
+    [ -z "$1" ] && echo "Instance name is empty" >&2 && exit 1
     INSTANCE_NAME=$1
     CONFIG="$(pwd)/configs/generic.yaml"
     generate "$CONFIG" "$@"
