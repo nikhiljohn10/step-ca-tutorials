@@ -19,6 +19,7 @@ brew install --cask multipass
 For other methods of installations, follow this [link](https://multipass.run/)
 
 ### Tutorial
+
 ```
 git clone https://github.com/nikhiljohn10/step-ca-tutorials
 cd step-ca-tutorials
@@ -28,20 +29,23 @@ Use `./vm.sh help` for command help
 
 ## Using runstep
 
-`runstep` command is custom built for this tutorial to demo the working of step-ca. With `-c` or `--step-ca` options of `vm.sh`, this command is installed inside the newly created virtual machine.
+`runstep` command is custom built for this tutorial to demo the working of step-ca.
 
 ```
 Usage: runstep <command>
 Commands:
         install                         Install Step CA **
         uninstall                       Uninstall Step CA **
-        start                           Start Step CA server
         init                            Initialise Step CA
-        bootstrap FINGERPRINT [-c]      Bootstrap Step CA
+        service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
         follow                          Follow Step CA server log
-        creds [STEP PATH]               Show credentials of CA ** (default path=/etc/step-ca)
-        server [-m]                     Start Web server with optional mTLS **
-        service [COMMAND]                 Manage Step CA service (Show status if no commands found) **
+        start                           Start Step CA server
+        commands [STEP PATH]            Show credentials of CA ** (default path=/etc/step-ca)
+        bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
+        server [-m] [-p|--port PORT]    Run https server with optional mTLS **
+        server COMMAND                  Manage https server service using systemctl commands **
+        certbot                         Run certbot and obtain client certificate from stepca **
+        certificate                     Generate client certificate
 
 Service commands: install, start, stop, enable [--now], disable [--now], restart, status 
 
@@ -56,26 +60,71 @@ When the `step-ca.service` is installed, the step-ca path is moved from user's h
 
 ## Step by Step by Step
 
-### Commands
-1. `./vm.sh ca` - to create vm for Step CA PKI (`ubuntu@stepca`)
+### Terminals
 
-2. `./vm.sh server` - to create vm for Webserver to subscribe to the Step CA server (`ubuntu@subscriber`)
+#### 1. `./vm.sh ca` - to create vm for Step CA PKI (`ubuntu@stepca`)
+   1. Verify network, dependencies & instance existance
+   2. Multipass generate ubuntu instance using cloud init configuration from `/configs/ca.yaml`
+   3. Install `runstep` command inside the instance
+   4. Install `step-ca` and `step-cli` inside the instance
+   5. Generate passwords
+   6. Generate PKI
+   7. Add `acme` provisioner of type `ACME`
+   8. Move the PKI files to `/etc/step-ca`
+   9. Install, enable & start `step-ca` server as service
+   10. Display bootstrapping commands
 
-3. `./vm.sh client` - to create vm for Client user to access webserver using Step CA Root & Client certificates. (`ubuntu@client`)
+#### 2. `./vm.sh server` - to create vm for Webserver to subscribe to the Step CA server (`ubuntu@website`)
+   1. Verify network, dependencies & instance existance
+   2. Multipass generate ubuntu instance using cloud init configuration from `/configs/server.yaml`
+   3. Install `runstep` command inside the instance
+   4. Install `step-ca` and `step-cli` inside the instance
+   5. Install, enable `https-server` as service
+   6. Load instance shell
 
-Ubuntu 20.04 LTS is the default image used by multipass.
+#### 3. `./vm.sh client` - to create vm for Client user to access webserver using Step CA Root & Client certificates. (`ubuntu@home`)
+   1. Verify network, dependencies & instance existance
+   2. Multipass generate ubuntu instance using cloud init configuration from `/configs/client.yaml`
+   3. Install `runstep` command inside the instance
+   4. Install `step-ca` and `step-cli` inside the instance
+   5. Load instance shell
 
-The `ubuntu@stepca` vm will run step-ca as service in background. It display bootstrapping commands to be used in `ubuntu@subscriber` & `ubuntu@client`. For boostrapping, you can use Password tokens or ACME service. By default, certbot is used to subscriber to ACME service in `ubuntu@stepca`.
+Ubuntu 20.04 LTS is the default image used by multipass. For boostrapping, you can use Password tokens or ACME service. By default, certbot is used to subscriber to ACME service in `ubuntu@stepca`.
 
 ### Bootstrapping
 
-Use the command `runstep bootstrap FINGERPRINT [-c|--certbot]`. This will fetch & install CA root certificate from `ubuntu@stepca`.
+```
+runstep bootstrap FINGERPRINT
+```
+This will fetch & install CA root certificate from `ubuntu@stepca`.
 
-**NOTE: certbot option is only required to request client certificates.**
+```
+sudo runstep certbot
+```
+Get new client certificate and private key using `certbot` on the first run. Once certificates are obtained, futher execution of this command will renew the existing certificates.
 
 ### Webserver
 
-Run `sudo runstep server [-m|--mtls]` command to start a webserver. With `-m` or `--mtls` options, the client will have to request server along with client certificates to allow mutual authentication.
+This command will start a new https server
+```
+sudo runstep server [-m|--mtls] [-p|--port PORT]
+```
+
+- With `-m` or `--mtls` options, the client will have to request server along with client certificates to allow mutual authentication. By default, https-server does not use mTLS.
+
+- With `-p PORT` or `--port PORT` option, https server start listening in given port number. Default is `443`.
+
+Pre-installed https server listen on port `443` without using mTLS. To manage pre-installed https server in use following format: 
+```
+sudo runstep server COMMAND
+```
+
+Available service commands are `start`, `stop`, `enable`, `disable`, `restart`.
+
+To run additional https server, use following command:
+```
+sudo runstep server -m -p 8443
+```
 
 ### Client
 
@@ -83,37 +132,31 @@ After bootstrapping, you can use the following commands depending on the type of
 
 Normal TLS:
 ```
-# For ubuntu users
-curl https://stepca.multipass
-
-# For macOS users
-curl https://stepca.local 
+curl https://website.local
 ```
 
 Mutual TLS:
 ```
-# For ubuntu users
-curl --cert client.crt --key client.key https://stepca.multipass
-
-# For macOS users
-curl --cert client.crt --key client.key https://stepca.local
+curl https://website.local:8443 --cert $(step path)/certs/home.local.crt --key $(step path)/secrets/home.local.key
 ```
 
 **NOTE: You need to pass `--cacert` if root certificate is not installed. But by default, root certificate in installed while bootstrapping.**
 
-To obtain client certificate for `ubuntu@client`, you can use the following command.
-```
-# For ubuntu users
-step ca certificate client.multipass client.crt client.key
+### Alternative to certbot
 
-# For macOS users
-step ca certificate client.local client.crt client.key
+To obtain client certificate for `ubuntu@home`, you can use the following command.
+```
+runstep certificate
 ```
 
 You have to choose jwk token method. It will ask for a password. You can copy paste the password from `ubuntu@stepca`.
 
+You can use the following command to display the bootstrapping process.
+```
+runstep commands
+```
+
 ## Limitation
 
 - Not compatible with Windows or WSL
-- mDNS Issue in MacOS
 - DNS Issue in Ubuntu can be resolved by running `bash utils/netfix_ubuntu.sh` on host system
