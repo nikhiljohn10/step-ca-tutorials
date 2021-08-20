@@ -25,7 +25,8 @@ Commands:
         start                           Start Step CA server
         commands [STEP PATH]            Show credentials of CA ** (default path=/etc/step-ca)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
-        server [-m]                     Run python web server with optional mTLS **
+        server [-m] [-p|--port PORT]    Run python web server with optional mTLS **
+        server COMMAND                  Manage https server service using systemctl commands **
         certbot                         Run certbot and obtain client certificate from stepca **
         certificate                     Generate client certificate
 
@@ -303,16 +304,8 @@ run_server() {
     shift
     while (( "$#" )); do
         case "$1" in
-            start)
-                systemctl start https-server.service || exit 1
-                exit 0
-                ;;
-            stop)
-                systemctl stop https-server.service || exit 1
-                exit 0
-                ;;
-            status)
-                systemctl status https-server.service || exit 1
+            start|stop|status|enable|disable|restart)
+                systemctl "$1" https-server.service || exit 1
                 exit 0
                 ;;
             -m|--mlts)
