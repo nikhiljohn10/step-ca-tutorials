@@ -379,13 +379,15 @@ get_client_certificate() {
     mkdir -p "$HOME_STEP_PATH/secrets" "$HOME_STEP_PATH/certs"
     CLIENT_CERT="$HOME_STEP_PATH/certs/$HOSTDOMAIN.crt"
     CLIENT_KEY="$HOME_STEP_PATH/secrets/$HOSTDOMAIN.key"
-    step ca certificate $HOSTDOMAIN $CLIENT_CERT $CLIENT_KEY || exit 1
-    cat <<EOF
+    GET_CERTS="step ca certificate ${HOSTDOMAIN} ${CLIENT_CERT} ${CLIENT_KEY}"
 
-Run the following command to visit the HTTPS website using mTLS:
-curl ${SERVER_URL}:8443 --cert ${CLIENT_CERT} --key ${CLIENT_KEY}
-
-EOF
+    shift
+    if [[ $# -eq 0 ]]; then
+        $GET_CERTS || exit 1
+    else
+        [ -z "$1" ] && echo "Invalid TOKEN" >&2 && exit 1
+        $GET_CERTS --provisioner "token-admin" --token $1 || exit 1
+    fi
 }
 
 follow_service() {
@@ -408,7 +410,7 @@ main() {
         bootstrap)      stepca_bootstrap "$@";;
         server)         run_server "$@";;
         certbot)        run_certbot;;
-        certificate)    get_client_certificate;;
+        certificate)    get_client_certificate "$@";;
         start)          start_ca;;
         init)           init_ca;;
         follow)         follow_service "$@";;
