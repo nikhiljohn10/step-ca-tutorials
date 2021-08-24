@@ -82,7 +82,7 @@ create_instance() {
     else
         [ -z "$1" ] && echo "cloud init config parameter is empty" >&2 && exit 1
 
-        echo "Starting a new virtual instance of Ubuntu" && \
+        echo "Starting a new virtual instance of Ubuntu: ${INSTANCE_NAME}" && \
             $MULTIPASS launch -n $INSTANCE_NAME --cloud-init "$1" && \
                 echo "Ubuntu instance ${INSTANCE_NAME} is installed" || exit 1
         
@@ -150,7 +150,6 @@ generate_server() {
     echo "Loading https-server service"
     $MULTIPASS exec $INSTANCE_NAME -- sudo systemctl daemon-reload
     $MULTIPASS exec $INSTANCE_NAME -- sudo runstep server enable
-    load_shell
 }
 
 generate_client() {
@@ -160,7 +159,6 @@ generate_client() {
 
     shift
     generate "$CONFIG" "$@"
-    load_shell
 }
 
 generate_generic() {
