@@ -169,3 +169,10 @@ sudo runstep commands
 
 - Not compatible with Windows or WSL
 - DNS Issue in Ubuntu can be resolved by running `bash utils/netfix_ubuntu.sh` on host system
+
+## Credits
+
+This project is completed with great help for various communities.
+
+- [Michał Sawicz](https://github.com/Saviq) (multipass)
+- [Mariano Cano](https://github.com/maraino) (stepca)
