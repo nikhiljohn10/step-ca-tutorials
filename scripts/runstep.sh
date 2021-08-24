@@ -347,8 +347,8 @@ run_certbot() {
     install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key"
     chown -R ubuntu:ubuntu "${HOME_STEP_PATH}"
 
-    if [ -f "/etc/systemd/system/https-server.service" -a -f "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf" ]; then
-        if grep -q -v "https-server" "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf"; then
+    if [ -f "/etc/systemd/system/https-server.service" ]; then
+        if [ ! -f "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh" ]; then
             tee -a "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh" > /dev/null 2>&1 <<EOF
 #!/usr/bin/env bash
 install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT ${HOME_STEP_PATH}/certs/${HOSTDOMAIN}.crt
