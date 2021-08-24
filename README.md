@@ -110,8 +110,10 @@ All the bootstrapping commands required by webserver and client will be displaye
 ```
 This command will run 2 major test which uses the above 3 commands followed by bootstrapping commands.
 
-Test 1: HTTPS Request without mTLS
-Test 2: HTTPS Request with mTLS
+**Tests:**
+
+   1. HTTPS Request without mTLS
+   2. HTTPS Request with mTLS
 
 ---
 > *Note: Following commands are only for reference.*
