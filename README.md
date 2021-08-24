@@ -38,16 +38,17 @@ Commands:
         uninstall                       Uninstall Step CA **
         init                            Initialise Step CA
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
-        follow                          Follow Step CA server log
+        follow [KEYWORD]                Follow a service log 
         start                           Start Step CA server
-        commands [STEP PATH]            Show credentials of CA ** (default path=/etc/step-ca)
+        commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
         server [-m] [-p|--port PORT]    Run https server with optional mTLS **
         server COMMAND                  Manage https server service using systemctl commands **
         certbot                         Run certbot and obtain client certificate from stepca **
         certificate                     Generate client certificate
 
-Service commands: install, start, stop, enable [--now], disable [--now], restart, status 
+Service commands:  install, start, stop, enable [--now], disable [--now], restart, status 
+Follow keywords:   ca (Step CA server), server (HTTPS WebServer), syslog (System Logs)
 
 [ ** - Require root access ]
 ```
@@ -56,7 +57,7 @@ Service commands: install, start, stop, enable [--now], disable [--now], restart
 
 When the `step-ca.service` is installed, the step-ca path is moved from user's home directory to `/etc/step-ca/`.
 
-**Note: Do not run `runstep init` with root previlages**
+**Note: Do not run `init`, `bootstrap`, `start`, `certificate` commands with root previlages**
 
 ## Step by Step by Step
 
@@ -100,6 +101,11 @@ When the `step-ca.service` is installed, the step-ca path is moved from user's h
 
 Ubuntu 20.04 LTS is the default image used by multipass. For boostrapping, you can use Password tokens or ACME service. By default, certbot is used to subscriber to ACME service in `ubuntu@stepca`.
 
+All the bootstrapping commands required by webserver and client will be displayed in `ubuntu@stepca` after the instance configuration is complete.
+
+---
+> *Note: Following commands are only for reference.*
+
 ### Bootstrapping
 
 ```
@@ -110,7 +116,7 @@ This will fetch & install CA root certificate from `ubuntu@stepca`.
 ```
 sudo runstep certbot
 ```
-Get new client certificate and private key using `certbot` on the first run. Once certificates are obtained, futher execution of this command will renew the existing certificates.
+Get new client certificate and private key using `certbot` on the first run. Once certificates are obtained, certbot will renew the certificate every 12 hour automatically and restart the webserver if `https-server` service exists.
 
 ### Webserver
 
