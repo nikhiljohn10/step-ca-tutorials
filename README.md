@@ -103,6 +103,16 @@ Ubuntu 20.04 LTS is the default image used by multipass. For boostrapping, you c
 
 All the bootstrapping commands required by webserver and client will be displayed in `ubuntu@stepca` after the instance configuration is complete.
 
+### Testing
+
+```
+./test.sh
+```
+This command will run 2 major test which uses the above 3 commands followed by bootstrapping commands.
+
+Test 1: HTTPS Request without mTLS
+Test 2: HTTPS Request with mTLS
+
 ---
 > *Note: Following commands are only for reference.*
 
@@ -161,7 +171,7 @@ curl https://website.local:8443 --cert $(step path)/certs/home.local.crt --key $
 
 To obtain client certificate for `ubuntu@home`, you can use the following command.
 ```
-runstep certificate
+runstep certificate [TOKEN]
 ```
 
 You have to choose jwk token method. It will ask for a password. You can copy paste the password from `ubuntu@stepca`.
@@ -170,6 +180,8 @@ You can use the following command to display the bootstrapping process.
 ```
 sudo runstep commands
 ```
+
+**Note: Refer `test.sh` to understand how to use `certificated` command with one time token. Password is not required when token is used.**
 
 ## Limitation
 
