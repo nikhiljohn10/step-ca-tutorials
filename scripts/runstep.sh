@@ -24,7 +24,7 @@ Commands:
         uninstall                       Uninstall Step CA **
         init                            Initialise Step CA
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
-        follow [ca|server]              Follow a service log (ca = Step CA server, server = HTTPS WebServer)
+        follow [KEYWORD]                Follow a service log 
         start                           Start Step CA server
         commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
@@ -33,7 +33,8 @@ Commands:
         certbot                         Run certbot and obtain client certificate from stepca **
         certificate                     Generate client certificate
 
-Service commands: install, start, stop, enable [--now], disable [--now], restart, status 
+Service commands:  install, start, stop, enable [--now], disable [--now], restart, status 
+Follow keywords:   ca (Step CA server), server (HTTPS WebServer), syslog (System Logs)
 
 [ ** - Require root access ]
 EOF
@@ -382,6 +383,7 @@ follow_service() {
     case "$1" in
         ca)         journalctl -f -u step-ca;;
         server)     journalctl -f -u https-server;;
+        syslog)     tail -f /var/log/syslog;;
         *)          echo "Error: Invalid service name" >&2 && exit 1;;
     esac
 }
