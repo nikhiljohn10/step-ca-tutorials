@@ -347,6 +347,7 @@ run_certbot() {
             certbot certonly -n --standalone \
             --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
             --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
+        echo "renew_hook = systemctl restart https-server" | tee -a "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf"
     fi
 
     install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt"
