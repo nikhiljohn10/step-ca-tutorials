@@ -24,7 +24,7 @@ Commands:
         uninstall                       Uninstall Step CA **
         init                            Initialise Step CA
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
-        follow                          Follow Step CA server log
+        follow [ca|server]              Follow a service log (ca = Step CA server, server = HTTPS WebServer)
         start                           Start Step CA server
         commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
@@ -347,6 +347,7 @@ run_certbot() {
             certbot certonly -n --standalone \
             --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
             --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
+        echo "renew_hook = systemctl restart https-server" | tee -a "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf"
     fi
 
     install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt"
@@ -375,6 +376,16 @@ curl $SERVER_URL --cert $CLIENT_CERT --key $CLIENT_KEY
 EOF
 }
 
+follow_service() {
+    shift
+    [[ $# -eq 0 ]] && show_help && exit 1
+    case "$1" in
+        ca)         journalctl -f -u step-ca;;
+        server)     journalctl -f -u https-server;;
+        *)          echo "Error: Invalid service name" >&2 && exit 1;;
+    esac
+}
+
 main() {
     case "$1" in
         install)        install_stepca;;
@@ -386,7 +397,7 @@ main() {
         certificate)    get_client_certificate;;
         start)          start_ca;;
         init)           init_ca;;
-        follow)         journalctl -f -u step-ca;;
+        follow)         follow_service "$@";;
         commands)       bootstrap_commands;;
         help)           show_help && exit 0;;
         *)              echo "Invalid command" && exit 1;;
