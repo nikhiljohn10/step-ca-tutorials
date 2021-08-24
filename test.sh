@@ -24,40 +24,65 @@ cat <<EOF
   └─────────────────────────┘
 
 EOF
-echo "====>> RESET ALL INSTANCES <<===="
+echo "====> RESET ALL INSTANCES"
 echo
 ./vm.sh reset
 echo
-echo "====>> STARTING STEP CA INSTANCE <<===="
+echo "====> STARTING STEP CA INSTANCE"
 echo
 ./vm.sh ca &
-echo "====>> STARTING SERVER INSTANCE <<===="
+echo "====> STARTING SERVER INSTANCE"
 echo
 ./vm.sh server &
-echo "====>> STARTING CLIENT INSTANCE <<===="
+echo "====> STARTING CLIENT INSTANCE"
 echo
 ./vm.sh client &
-echo "====>> WAITING FOR ALL INSTANCES <<===="
+echo "====> >> WAITING FOR ALL INSTANCES"
 echo
 wait
-echo "====>> LOADING FINGERPRINT <<===="
+echo "====> ALL INSTANCES ARE STARTED AND CONFIGURED"
+echo
+echo "====> LOADING FINGERPRINT"
 FINGERPRINT=$($MULTIPASS exec stepca -- sudo step certificate fingerprint /etc/step-ca/certs/root_ca.crt)
 echo
-echo "====>> BOOTSTRAPPING SERVER <<===="
+echo "====> BOOTSTRAPPING SERVER"
 echo
-echo "====>> RUNNING CERTBOT & HTTPS WEBSERVER IN SERVER <<===="
+echo "====> >> RUNNING CERTBOT & HTTPS WEBSERVER IN SERVER"
 echo
 $SERVER runstep bootstrap $FINGERPRINT && $SERVER sudo runstep certbot &
-echo "====>> BOOTSTRAPPING CLIENT <<===="
+echo "====> BOOTSTRAPPING CLIENT"
 echo
 $CLIENT runstep bootstrap $FINGERPRINT &
-echo "====>> WAITING FOR SERVER AND CLIENT TO BOOTSTRAP <<===="
+echo "====> >> WAITING FOR SERVER AND CLIENT TO BOOTSTRAP"
 echo
 wait
+echo
+echo "====> SERVER AND CLIENT ARE BOOTSTRAPPED"
+echo
 sleep 1
-echo "====>> TESTING HTTPS WEBSITE FROM CLIENT <<===="
+echo "====> TEST #1: ACCESSING HTTPS WEBSITE FROM CLIENT"
 echo
-$CLIENT curl https://website.local
+echo "====> >> SENDING HTTPS REQUEST WITHOUT MTLS"
 echo
-echo "====>> TEST IS COMPLETE <<===="
+$CLIENT curl https://website.local || exit 1
+echo
+echo "====> TEST #1 IS COMPLETE"
+echo
+echo "====> TEST #2: ACCESSING HTTPS WEBSITE WITH MTLS FROM CLIENT"
+echo
+echo "====> >> GENERATING ONT TIME TOKEN FROM CA"
+echo
+TOKEN=$($MULTIPASS exec stepca -- sudo STEPPATH=/etc/step-ca step ca token home.local --provisioner token-admin --provisioner-password-file=/etc/step-ca/secrets/password.txt)
+echo
+echo "====> >> CLIENT REQUESTING NEW CERTIFICATE FROM CA USING THE TOKEN"
+echo
+$CLIENT runstep certificate "$TOKEN"
+echo
+echo "====> >> CLIENT CERTIFICATE RECEIVED FROM CA"
+echo
+echo "====> >> SENDING HTTPS REQUEST WITH MTLS"
+echo
+$CLIENT curl https://website.local:8443 --cert /home/ubuntu/.step/certs/home.local.crt --key /home/ubuntu/.step/secrets/home.local.key || exit 1
+echo
+echo "====> TEST #2 IS COMPLETE"
 echo
