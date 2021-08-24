@@ -34,7 +34,7 @@ Commands:
         certificate                     Generate client certificate
 
 Service commands:  install, start, stop, enable [--now], disable [--now], restart, status 
-Follow keywords:   ca (Step CA server), server (HTTPS WebServer), syslog (System Logs)
+Follow keywords:   ca (Step CA server), server (HTTPS WebServer), mtls (HTTPS Server with mTLS), syslog (System Logs)
 
 [ ** - Require root access ]
 EOF
@@ -300,6 +300,7 @@ run_server() {
         case "$1" in
             start|stop|status|enable|disable|restart)
                 systemctl "$1" https-server.service 1>/dev/null || exit 1
+                systemctl "$1" https-mtls.service 1>/dev/null || exit 1
                 exit 0
                 ;;
             -m|--mlts)
@@ -347,7 +348,7 @@ run_certbot() {
     install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key"
     chown -R ubuntu:ubuntu "${HOME_STEP_PATH}"
 
-    if [ -f "/etc/systemd/system/https-server.service" ]; then
+    if [ -f "/etc/systemd/system/https-server.service" -a -f "/etc/systemd/system/https-mtls.service" ]; then
         if [ ! -f "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh" ]; then
             tee -a "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh" > /dev/null 2>&1 <<EOF
 #!/usr/bin/env bash
@@ -355,6 +356,7 @@ install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT ${HOME_STEP_PATH}/certs/${H
 install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY ${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key
 chown -R ubuntu:ubuntu ${HOME_STEP_PATH}
 systemctl restart https-server
+systemctl restart https-mtls
 EOF
             chmod +x "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh"
         fi
@@ -392,6 +394,7 @@ follow_service() {
     case "$1" in
         ca)         journalctl -f -u step-ca;;
         server)     journalctl -f -u https-server;;
+        mtls)       journalctl -f -u https-mtls;;
         syslog)     tail -f /var/log/syslog;;
         *)          echo "Error: Invalid service name" >&2 && exit 1;;
     esac

@@ -33,6 +33,23 @@ write_files:
     [Install]
     WantedBy=multi-user.target
 
+- path: /etc/systemd/system/https-mtls.service
+  content: |
+    [Unit]
+    Description=A simple python https web server with mTLS
+    After=network.target
+
+    [Service]
+    Type=simple
+    Restart=always
+    RestartSec=5
+    ExecStart=/usr/bin/runstep server -m -p 8443
+    StandardOutput=syslog
+    SyslogIdentifier=python-https-mtls
+
+    [Install]
+    WantedBy=multi-user.target
+
 runcmd:
 - systemctl restart systemd-resolved.service
 - "for interface in $(ip -o link show | awk -F': ' '{print $2}' | grep -v lo); do systemctl start mdns@$interface.service; done"
