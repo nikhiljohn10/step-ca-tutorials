@@ -365,14 +365,14 @@ EOF
 }
 
 get_client_certificate() {
-    mkdir -p $ROOT_STEP_PATH/secrets
-    CLIENT_CERT="$ROOT_STEP_PATH/certs/$HOSTDOMAIN.crt"
-    CLIENT_KEY="$ROOT_STEP_PATH/secrets/$HOSTDOMAIN.key"
+    mkdir -p "$HOME_STEP_PATH/secrets" "$HOME_STEP_PATH/certs"
+    CLIENT_CERT="$HOME_STEP_PATH/certs/$HOSTDOMAIN.crt"
+    CLIENT_KEY="$HOME_STEP_PATH/secrets/$HOSTDOMAIN.key"
     step ca certificate $HOSTDOMAIN $CLIENT_CERT $CLIENT_KEY || exit 1
     cat <<EOF
 
 Run the following command to visit the HTTPS website using mTLS:
-curl $SERVER_URL --cert $CLIENT_CERT --key $CLIENT_KEY
+curl ${SERVER_URL}:8443 --cert ${CLIENT_CERT} --key ${CLIENT_KEY}
 
 EOF
 }
