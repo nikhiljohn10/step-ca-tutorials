@@ -138,7 +138,7 @@ $ runstep certificate
 $ curl ${SERVER_URL}
     ( Connect with https server wihtout mTLS)
 
-$ curl ${SERVER_URL}:8443 --cert ${HOME_STEP_PATH}/certs/${CLIENT_DOMAIN}.crt --key ${HOME_STEP_PATH}/secrets/${CLIENT_DOMAIN}.key
+$ curl ${SERVER_URL}:8443 --cert \$(step path)/certs/${CLIENT_DOMAIN}.crt --key \$(step path)/secrets/${CLIENT_DOMAIN}.key
     ( Connect with https server wiht mTLS on port 8443)
 
     ===============================
