@@ -123,32 +123,29 @@ $ runstep bootstrap ${FINGERPRINT}
 
 2. Run certbot to obtain certificate for your system
 $ sudo runstep certbot
-    ( Certbot will manage all certificates and provide command to access server )
+    ( Certbot will manage all certificates and provide command to access server. Then it start https server service if it exsists)
 
-3. Start https server as daemon
-$ sudo runstep server start
-    ( Start the systemd service without mTLS )
-
-4. Start https server as daemon
+3. Start https server as daemon (Optional)
 $ sudo runstep server -m -p 8443
     ( Start server in terminal with mTLS on port 8443 )
 
-5. Request client certificate using JWK Provisioner
+4. Request client certificate using JWK Provisioner
 $ runstep certificate
     Password: ${PASSWORD}
     ( Choose JWK provisioner key. Then copy the above password and pasted it where it is requested. )
 
-6. Test https server from client
+5. Test https server from client
 $ curl ${SERVER_URL}
     ( Connect with https server wihtout mTLS)
+
 $ curl ${SERVER_URL}:8443 --cert ${HOME_STEP_PATH}/certs/${CLIENT_DOMAIN}.crt --key ${HOME_STEP_PATH}/secrets/${CLIENT_DOMAIN}.key
     ( Connect with https server wiht mTLS on port 8443)
 
-    ===================================
-    | Server flow:    | 1 > 2 > 3 > 4 |
-    | Client flow #1: | 1 > 2 > 6     |
-    | Client flow #2: | 1 > 5 > 6     |
-    ===================================
+    ===============================
+    | Server flow:    | 1 > 2 > 3 |
+    | Client flow #1: | 1 > 2 > 5 |
+    | Client flow #2: | 1 > 4 > 5 |
+    ===============================
 
 CREDS
 }
@@ -341,25 +338,37 @@ run_certbot() {
     check_certbot
     get_root_cert
 
-    if [ -f "$HOST_CERT" -a -f "$HOST_KEY" ]; then
-        REQUESTS_CA_BUNDLE="$ROOT_CERT" certbot renew || exit 1
-    else
-        REQUESTS_CA_BUNDLE="$ROOT_CERT" \
-            certbot certonly -n --standalone \
-            --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
-            --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
-        echo "renew_hook = systemctl restart https-server" | tee -a "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf"
+    REQUESTS_CA_BUNDLE="$ROOT_CERT" \
+        certbot certonly -n --standalone \
+        --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
+        --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
+    
+    install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "${HOME_STEP_PATH}/certs/${HOSTDOMAIN}.crt"
+    install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key"
+    chown -R ubuntu:ubuntu "${HOME_STEP_PATH}"
+
+    if [ -f "/etc/systemd/system/https-server.service" -a -f "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf" ]; then
+        if grep -q -v "https-server" "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf"; then
+            tee -a "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh" > /dev/null 2>&1 <<EOF
+#!/usr/bin/env bash
+install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT ${HOME_STEP_PATH}/certs/${HOSTDOMAIN}.crt
+install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY ${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key
+chown -R ubuntu:ubuntu ${HOME_STEP_PATH}
+systemctl restart https-server
+EOF
+            chmod +x "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh"
+        fi
+        main server start
     fi
 
-    install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt"
-    install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "${HOME_STEP_PATH}/secrets/$HOSTDOMAIN.key"
-    chown -R ubuntu:ubuntu "${HOME_STEP_PATH}"
     cat <<EOF
 
 The certificate and private key is stored in following locations:
 
-    Certificate: ${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt
-    Private Key: ${HOME_STEP_PATH}/secrets/$HOSTDOMAIN.key
+    Certificate: ${HOME_STEP_PATH}/certs/${HOSTDOMAIN}.crt
+    Private Key: ${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key
+
+The certificate for the domain ${HOSTDOMAIN} is automatically renewed every 12 hours.
 
 EOF
 }
