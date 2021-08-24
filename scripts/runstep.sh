@@ -24,7 +24,7 @@ Commands:
         uninstall                       Uninstall Step CA **
         init                            Initialise Step CA
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
-        follow [ca|server]              Follow a service log (ca = Step CA server, server = HTTPS WebServer)
+        follow [KEYWORD]                Follow a service log 
         start                           Start Step CA server
         commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
@@ -33,7 +33,8 @@ Commands:
         certbot                         Run certbot and obtain client certificate from stepca **
         certificate                     Generate client certificate
 
-Service commands: install, start, stop, enable [--now], disable [--now], restart, status 
+Service commands:  install, start, stop, enable [--now], disable [--now], restart, status 
+Follow keywords:   ca (Step CA server), server (HTTPS WebServer), syslog (System Logs)
 
 [ ** - Require root access ]
 EOF
@@ -122,32 +123,29 @@ $ runstep bootstrap ${FINGERPRINT}
 
 2. Run certbot to obtain certificate for your system
 $ sudo runstep certbot
-    ( Certbot will manage all certificates and provide command to access server )
+    ( Certbot will manage all certificates and provide command to access server. Then it start https server service if it exsists)
 
-3. Start https server as daemon
-$ sudo runstep server start
-    ( Start the systemd service without mTLS )
-
-4. Start https server as daemon
+3. Start https server as daemon (Optional)
 $ sudo runstep server -m -p 8443
     ( Start server in terminal with mTLS on port 8443 )
 
-5. Request client certificate using JWK Provisioner
+4. Request client certificate using JWK Provisioner
 $ runstep certificate
     Password: ${PASSWORD}
     ( Choose JWK provisioner key. Then copy the above password and pasted it where it is requested. )
 
-6. Test https server from client
+5. Test https server from client
 $ curl ${SERVER_URL}
     ( Connect with https server wihtout mTLS)
+
 $ curl ${SERVER_URL}:8443 --cert ${HOME_STEP_PATH}/certs/${CLIENT_DOMAIN}.crt --key ${HOME_STEP_PATH}/secrets/${CLIENT_DOMAIN}.key
     ( Connect with https server wiht mTLS on port 8443)
 
-    ===================================
-    | Server flow:    | 1 > 2 > 3 > 4 |
-    | Client flow #1: | 1 > 2 > 6     |
-    | Client flow #2: | 1 > 5 > 6     |
-    ===================================
+    ===============================
+    | Server flow:    | 1 > 2 > 3 |
+    | Client flow #1: | 1 > 2 > 5 |
+    | Client flow #2: | 1 > 4 > 5 |
+    ===============================
 
 CREDS
 }
@@ -340,38 +338,50 @@ run_certbot() {
     check_certbot
     get_root_cert
 
-    if [ -f "$HOST_CERT" -a -f "$HOST_KEY" ]; then
-        REQUESTS_CA_BUNDLE="$ROOT_CERT" certbot renew || exit 1
-    else
-        REQUESTS_CA_BUNDLE="$ROOT_CERT" \
-            certbot certonly -n --standalone \
-            --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
-            --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
-        echo "renew_hook = systemctl restart https-server" | tee -a "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf"
+    REQUESTS_CA_BUNDLE="$ROOT_CERT" \
+        certbot certonly -n --standalone \
+        --agree-tos --email "$EMAIL_ID" -d "$HOSTDOMAIN" \
+        --server "${STEP_CA_URL}/acme/acme/directory" || exit 1
+    
+    install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "${HOME_STEP_PATH}/certs/${HOSTDOMAIN}.crt"
+    install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key"
+    chown -R ubuntu:ubuntu "${HOME_STEP_PATH}"
+
+    if [ -f "/etc/systemd/system/https-server.service" -a -f "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf" ]; then
+        if grep -q -v "https-server" "/etc/letsencrypt/renewal/${HOSTDOMAIN}.conf"; then
+            tee -a "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh" > /dev/null 2>&1 <<EOF
+#!/usr/bin/env bash
+install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT ${HOME_STEP_PATH}/certs/${HOSTDOMAIN}.crt
+install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY ${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key
+chown -R ubuntu:ubuntu ${HOME_STEP_PATH}
+systemctl restart https-server
+EOF
+            chmod +x "/etc/letsencrypt/renewal-hooks/post/${HOSTDOMAIN}.sh"
+        fi
+        main server start
     fi
 
-    install -D -T -m 0644 -o ubuntu -g ubuntu $HOST_CERT "${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt"
-    install -D -T -m 0600 -o ubuntu -g ubuntu $HOST_KEY "${HOME_STEP_PATH}/secrets/$HOSTDOMAIN.key"
-    chown -R ubuntu:ubuntu "${HOME_STEP_PATH}"
     cat <<EOF
 
 The certificate and private key is stored in following locations:
 
-    Certificate: ${HOME_STEP_PATH}/certs/$HOSTDOMAIN.crt
-    Private Key: ${HOME_STEP_PATH}/secrets/$HOSTDOMAIN.key
+    Certificate: ${HOME_STEP_PATH}/certs/${HOSTDOMAIN}.crt
+    Private Key: ${HOME_STEP_PATH}/secrets/${HOSTDOMAIN}.key
+
+The certificate for the domain ${HOSTDOMAIN} is automatically renewed every 12 hours.
 
 EOF
 }
 
 get_client_certificate() {
-    mkdir -p $ROOT_STEP_PATH/secrets
-    CLIENT_CERT="$ROOT_STEP_PATH/certs/$HOSTDOMAIN.crt"
-    CLIENT_KEY="$ROOT_STEP_PATH/secrets/$HOSTDOMAIN.key"
+    mkdir -p "$HOME_STEP_PATH/secrets" "$HOME_STEP_PATH/certs"
+    CLIENT_CERT="$HOME_STEP_PATH/certs/$HOSTDOMAIN.crt"
+    CLIENT_KEY="$HOME_STEP_PATH/secrets/$HOSTDOMAIN.key"
     step ca certificate $HOSTDOMAIN $CLIENT_CERT $CLIENT_KEY || exit 1
     cat <<EOF
 
 Run the following command to visit the HTTPS website using mTLS:
-curl $SERVER_URL --cert $CLIENT_CERT --key $CLIENT_KEY
+curl ${SERVER_URL}:8443 --cert ${CLIENT_CERT} --key ${CLIENT_KEY}
 
 EOF
 }
@@ -382,6 +392,7 @@ follow_service() {
     case "$1" in
         ca)         journalctl -f -u step-ca;;
         server)     journalctl -f -u https-server;;
+        syslog)     tail -f /var/log/syslog;;
         *)          echo "Error: Invalid service name" >&2 && exit 1;;
     esac
 }
