@@ -173,11 +173,11 @@ install_stepca() {
 
     # Download step-cli if not downloaded
     [ ! -f "${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb" ] && \
-    wget -q --show-progress -O ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb "${GITHUB_URL}/${CLI_REPO}/releases/download/v${CLI_VER}/step-cli_${CLI_VER}_amd64.deb"
+    wget -q -O ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb "${GITHUB_URL}/${CLI_REPO}/releases/download/v${CLI_VER}/step-cli_${CLI_VER}_amd64.deb"
 
     # Download step-ca if not downloaded
     [ ! -f "${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb" ] && \
-    wget -q --show-progress -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
+    wget -q -O ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb "${GITHUB_URL}/${CA_REPO}/releases/download/v${CA_VER}/step-ca_${CA_VER}_amd64.deb"
 
     # Install deb packages
     dpkg -i ${TEMP_PATH}/step-cli_${CLI_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
