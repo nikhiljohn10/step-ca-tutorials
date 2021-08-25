@@ -36,11 +36,12 @@ Options:
          -f,--force      Force a new instance to start
          -d,--delete     Delete the instance
 
-Keywords: ca, server, client, help
+Keywords: ca, server, client, help, reset
 If none of keywords given, it creates a generic instance with name INSTANCE
 ```
 
-Use `./vm.sh help` for command help.
+Use `./vm.sh help` to display command help.
+Use `./vm.sh reset` to delete all instance and purge them. (**Use this option with care if you have other instances running in multipass.**)
 
 ## Step by Step by Step
 

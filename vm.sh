@@ -29,7 +29,7 @@ Options:
          -f,--force      Force a new instance to start
          -d,--delete     Delete the instance
 
-Keywords: ca, server, client, help
+Keywords: ca, server, client, help, reset
 If none of keywords given, it creates a generic instance with name INSTANCE
 EOF
 }
