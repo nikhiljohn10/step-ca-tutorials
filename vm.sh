@@ -23,11 +23,14 @@ check_network() {
 
 show_help() {
     cat << EOF
-Usage: ${0:-vm.sh} <name> [options]
+Usage: ${0:-vm.sh} <INSTANCE|KEYWORD> [OPTIONS]
 Options:
          -u,--upgrade    Update and upgrade packages inside ubuntu instance
          -f,--force      Force a new instance to start
          -d,--delete     Delete the instance
+
+Keywords: ca, server, client, help, reset
+If none of keywords given, it creates a generic instance with name INSTANCE
 EOF
 }
 

@@ -24,9 +24,16 @@ cat <<EOF
   └─────────────────────────┘
 
 EOF
-echo "====> RESET ALL INSTANCES"
+echo "====> RESETING ALL INSTANCES"
 echo
-./vm.sh reset
+./vm.sh ca -d &
+./vm.sh server -d &
+./vm.sh client -d &
+echo "====> >> WAITING FOR ALL INSTANCES TO BE RESET"
+echo
+wait
+echo
+echo "====> ALL INSTANCES ARE RESET"
 echo
 echo "====> STARTING STEP CA INSTANCE"
 echo
