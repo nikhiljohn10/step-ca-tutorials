@@ -27,7 +27,20 @@ git clone https://github.com/nikhiljohn10/step-ca-tutorials
 cd step-ca-tutorials
 ```
 
-Use `./vm.sh help` for command help
+Use `vm.sh` script to manage virtual ubuntu instance via multipass.
+
+```
+Usage: ./vm.sh <INSTANCE|KEYWORD> [OPTIONS]
+Options:
+         -u,--upgrade    Update and upgrade packages inside ubuntu instance
+         -f,--force      Force a new instance to start
+         -d,--delete     Delete the instance
+
+Keywords: ca, server, client, help
+If none of keywords given, it creates a generic instance with name INSTANCE
+```
+
+Use `./vm.sh help` for command help.
 
 ## Step by Step by Step
 
@@ -57,7 +70,6 @@ Run the following 3 commands in 3 different terminals. The last two commands are
    3. Install `runstep` command inside the instance
    4. Install `step-ca` and `step-cli` inside the instance
    5. Install, enable `https-server` as a service
-   6. Load instance shell
 
 ### 3. `./vm.sh client`
 
@@ -67,11 +79,12 @@ Run the following 3 commands in 3 different terminals. The last two commands are
    2. Multipass generate ubuntu instance using cloud-init configuration from `/configs/client.yaml`
    3. Install `runstep` command inside the instance
    4. Install `step-ca` and `step-cli` inside the instance
-   5. Load instance shell
 
 Ubuntu 20.04 LTS is the default image used by multipass. For bootstrapping, you can use Password tokens or ACME service. By default, certbot is used to subscribe to ACME service in `ubuntu@stepca`.
 
 All the bootstrapping commands required by the webserver and client will be displayed in `ubuntu@stepca` after the instance configuration is complete.
+
+To load the shell of corresponding instance, run the same command again. To refresh the instance, pass `-f` or `--force` parameter after the command. This will delete, purge and start the instance fresh.
 
 ### Testing
 
