@@ -28,10 +28,10 @@ Commands:
         start                           Start Step CA server
         commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
-        server [-m] [-p|--port PORT]    Run https server with optional mTLS **
-        server COMMAND                  Manage https server service using systemctl commands **
+        server [-m] [-p|--port PORT]    Run HTTPS server with optional mTLS **
+        server COMMAND                  Manage HTTPS server service using systemctl commands **
         certbot                         Run certbot and obtain client certificate from stepca **
-        certificate                     Generate client certificate
+        certificate                     Generate a client certificate
 
 Service commands:  install, start, stop, enable [--now], disable [--now], restart, status 
 Follow keywords:   ca (Step CA server), server (HTTPS WebServer), mtls (HTTPS Server with mTLS), syslog (System Logs)
@@ -123,9 +123,9 @@ $ runstep bootstrap ${FINGERPRINT}
 
 2. Run certbot to obtain certificate for your system
 $ sudo runstep certbot
-    ( Certbot will manage all certificates and provide command to access server. Then it start https server service if it exsists)
+    ( Certbot will manage all certificates and provide command to access server. Then it start HTTPS server service if it exsists)
 
-3. Start https server as daemon (Optional)
+3. Start HTTPS server as daemon (Optional)
 $ sudo runstep server -m -p 8443
     ( Start server in terminal with mTLS on port 8443 )
 
@@ -134,12 +134,12 @@ $ runstep certificate
     Password: ${PASSWORD}
     ( Choose JWK provisioner key. Then copy the above password and pasted it where it is requested. )
 
-5. Test https server from client
+5. Test HTTPS server from client
 $ curl ${SERVER_URL}
-    ( Connect with https server wihtout mTLS)
+    ( Connect with HTTPS server wihtout mTLS)
 
 $ curl ${SERVER_URL}:8443 --cert \$(step path)/certs/${CLIENT_DOMAIN}.crt --key \$(step path)/secrets/${CLIENT_DOMAIN}.key
-    ( Connect with https server wiht mTLS on port 8443)
+    ( Connect with HTTPS server wiht mTLS on port 8443)
 
     ===============================
     | Server flow:    | 1 > 2 > 3 |
