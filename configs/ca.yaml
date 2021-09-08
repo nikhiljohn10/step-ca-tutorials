@@ -1,5 +1,5 @@
 package_update: true
-packages: [tree]
+packages: [tree, python3-pip]
 write_files:
 - path: /etc/systemd/resolved.conf
   append: true

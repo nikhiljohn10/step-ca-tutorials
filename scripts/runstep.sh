@@ -10,6 +10,7 @@ HOST_CERT="/etc/letsencrypt/live/${HOSTDOMAIN}/fullchain.pem"
 HOST_KEY="/etc/letsencrypt/live/${HOSTDOMAIN}/privkey.pem"
 HOME_STEP_PATH="/home/ubuntu/.step"
 ROOT_STEP_PATH="/etc/step-ca"
+WORKER_PATH="/home/ubuntu/.worker"
 
 declare -g ROOT_CERT
 declare -g CA_JSON
@@ -26,6 +27,7 @@ Commands:
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
         follow [KEYWORD]                Follow a service log 
         start                           Start Step CA server
+        deploy                          Deploy Cloudflare worker
         commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
         server [-m] [-p|--port PORT]    Run HTTPS server with optional mTLS **
@@ -184,6 +186,12 @@ install_stepca() {
     dpkg -i ${TEMP_PATH}/step-ca_${CA_VER}_amd64.deb > >(awk '!/^[\(]|^(update)|^(Selecting)/ {print}') && \
     bind_port_permission
     add_completion
+
+    # Installing worker
+    git clone "https://github.com/nikhiljohn10/ca-worker" "${WORKER_PATH}"
+    mv "/home/ubuntu/ca-worker" "${WORKER_PATH}" 
+    tree "/home/ubuntu/"
+    tree "${WORKER_PATH}"
 }
 
 uninstall_stepca() {
@@ -228,7 +236,11 @@ init_ca() {
             --provisioner-password-file "$NEW_PASSWORD_FILE"
 
         step ca provisioner add acme --type ACME
-
+        whoami
+        ls -la "${HOME_STEP_PATH}/certs/root_ca.crt"
+        cp "${HOME_STEP_PATH}/certs/root_ca.crt" "${WORKER_PATH}/certs/"
+        ls -la "${WORKER_PATH}/certs/"
+        tree "${WORKER_PATH}"
     fi
 }
 
@@ -258,6 +270,7 @@ install_service() {
 
         tree "${ROOT_STEP_PATH}"
         bootstrap_commands "${ROOT_STEP_PATH}"
+        tree "${WORKER_PATH}"
 
     elif [[ "$1" == "" ]]; then
         systemctl status step-ca
@@ -390,6 +403,17 @@ get_client_certificate() {
     fi
 }
 
+deploy_worker() {
+    FINGERPRINT=$(step certificate fingerprint "${WORKER_PATH}/certs/root_ca.crt" || exit 1)
+    python3 "${WORKER_PATH}/deploy.py" \
+        --name "${ORG_NAME}" \
+        --fingerprint "${FINGERPRINT}" \
+        --ca-url "${STEP_CA_URL}" \
+        --root-ca "${WORKER_PATH}/certs/root_ca.crt" \
+        --worker "stepca" \
+        --location "${WORKER_PATH}/build/index.js"
+}
+
 follow_service() {
     shift
     [[ $# -eq 0 ]] && show_help && exit 1
@@ -413,6 +437,7 @@ main() {
         certificate)    get_client_certificate "$@";;
         start)          start_ca;;
         init)           init_ca;;
+        deploy)         deploy_worker;;
         follow)         follow_service "$@";;
         commands)       bootstrap_commands;;
         help)           show_help && exit 0;;

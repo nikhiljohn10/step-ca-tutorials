@@ -136,6 +136,8 @@ generate_ca() {
     $MULTIPASS exec $INSTANCE_NAME -- runstep init
     echo "Installing step-ca service"
     $MULTIPASS exec $INSTANCE_NAME -- sudo runstep service install
+    echo "Deploying root CA worker"
+    $MULTIPASS exec $INSTANCE_NAME -- runstep deploy
 }
 
 generate_server() {

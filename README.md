@@ -60,7 +60,8 @@ Run the following 3 commands in 3 different terminals. The last two commands are
    7. Add `acme` provisioner of type `ACME`
    8. Move the PKI files to `/etc/step-ca`
    9. Install, enable & start `step-ca` server as a service
-   10. Display bootstrapping commands
+   10. Deploy Cloudflare worker to publish root certificate and fingerprint
+   11. Display bootstrapping commands
 
 ### 2. `./vm.sh server`
 
