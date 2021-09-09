@@ -19,14 +19,16 @@ declare -g SEARCH_FILE
 
 show_help() {
     cat << EOF
-Usage: runstep <command>
+Usage: runstep <command> [options]
 Commands:
         install                         Install Step CA **
         uninstall                       Uninstall Step CA **
-        init                            Initialise Step CA
+        init [WEBSITE[,WEBSITE,...]]    Initialise Step CA
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
         follow [KEYWORD]                Follow a service log 
         start                           Start Step CA server
+        sign CSR_FILE                   Sign a CSR file using Root CA **
+        signinter CSR_FILE              Sign a CSR file using Intermediate CA **
         deploy                          Deploy Cloudflare worker
         commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
@@ -187,11 +189,6 @@ install_stepca() {
     bind_port_permission
     add_completion
 
-    # Installing worker
-    git clone "https://github.com/nikhiljohn10/ca-worker" "${WORKER_PATH}"
-    mv "/home/ubuntu/ca-worker" "${WORKER_PATH}" 
-    tree "/home/ubuntu/"
-    tree "${WORKER_PATH}"
 }
 
 uninstall_stepca() {
@@ -215,6 +212,13 @@ init_ca() {
     CA_HOST=""
     CA_PORT="443"
 
+    shift
+    if [[ $# -eq 1 ]]; then
+        DNS_LIST="${HOSTDOMAIN},${1}"
+    else
+        DNS_LIST="${HOSTDOMAIN}"
+    fi
+
     if [ ! -f "${NEW_PASSWORD_FILE}" ]; then
 
         # Password generation
@@ -230,17 +234,18 @@ init_ca() {
         step ca init \
             --name "$ORG_NAME" \
             --provisioner "$PROVISIONER" \
-            --dns "$HOSTDOMAIN" \
+            --dns "$DNS_LIST" \
             --address "$CA_HOST:$CA_PORT" \
             --password-file "$NEW_PASSWORD_FILE" \
             --provisioner-password-file "$NEW_PASSWORD_FILE"
 
         step ca provisioner add acme --type ACME
         whoami
-        ls -la "${HOME_STEP_PATH}/certs/root_ca.crt"
+
+        # Installing worker
+        git clone "https://github.com/nikhiljohn10/ca-worker" "${WORKER_PATH}"
         cp "${HOME_STEP_PATH}/certs/root_ca.crt" "${WORKER_PATH}/certs/"
-        ls -la "${WORKER_PATH}/certs/"
-        tree "${WORKER_PATH}"
+        (cd "${WORKER_PATH}" && make build)
     fi
 }
 
@@ -270,7 +275,6 @@ install_service() {
 
         tree "${ROOT_STEP_PATH}"
         bootstrap_commands "${ROOT_STEP_PATH}"
-        tree "${WORKER_PATH}"
 
     elif [[ "$1" == "" ]]; then
         systemctl status step-ca
@@ -403,15 +407,56 @@ get_client_certificate() {
     fi
 }
 
+sign_csr() {
+    check_network
+    require_sudo
+    get_password_file
+
+    if [[ $# -eq 3 ]]; then
+        CSR_FILE="${1}"
+        CERT_FILE="${2}"
+        PRIVATE_KEY_FILE="${3}"
+        step certificate sign "${CSR_FILE}" "${CERT_FILE}" "${PRIVATE_KEY_FILE}" \
+            --bundle --profile leaf \
+            --password-file "${$PASSWORD_FILE}"
+    else
+        echo "Invalid singing arguments" >&2 && exit 1
+    fi
+}
+
+signroot_csr() {
+    get_root_cert
+    shift
+    if [[ $# -eq 1 ]]; then
+        CSR_FILE="${1}"
+        KEY_FILE="${ROOT_STEP_PATH}/secrets/root_ca_key"
+        sign_csr "${CSR_FILE}" "${ROOT_CERT}" "${KEY_FILE}"
+    else
+        echo "Invalid singing arguments" >&2 && exit 1
+    fi
+}
+
+signinter_csr() {
+    shift
+    if [[ $# -eq 1 ]]; then
+        CSR_FILE="${1}"
+        CERT_FILE="${ROOT_STEP_PATH}/certs/intermediate_ca.crt"
+        KEY_FILE="${ROOT_STEP_PATH}/secrets/intermediate_ca_key"
+        sign_csr "${CSR_FILE}" "${CERT_FILE}" "${KEY_FILE}"
+    else
+        echo "Invalid singing arguments" >&2 && exit 1
+    fi
+}
+
 deploy_worker() {
     FINGERPRINT=$(step certificate fingerprint "${WORKER_PATH}/certs/root_ca.crt" || exit 1)
-    python3 "${WORKER_PATH}/deploy.py" \
+    (cd "${WORKER_PATH}" && python3 "deploy.py" \
         --name "${ORG_NAME}" \
         --fingerprint "${FINGERPRINT}" \
         --ca-url "${STEP_CA_URL}" \
         --root-ca "${WORKER_PATH}/certs/root_ca.crt" \
         --worker "stepca" \
-        --location "${WORKER_PATH}/build/index.js"
+        --location "${WORKER_PATH}/build/index.js")
 }
 
 follow_service() {
@@ -436,7 +481,9 @@ main() {
         certbot)        run_certbot;;
         certificate)    get_client_certificate "$@";;
         start)          start_ca;;
-        init)           init_ca;;
+        init)           init_ca "$@";;
+        sign)           signroot_csr "$@";;
+        signinter)      signinter_csr "$@";;
         deploy)         deploy_worker;;
         follow)         follow_service "$@";;
         commands)       bootstrap_commands;;

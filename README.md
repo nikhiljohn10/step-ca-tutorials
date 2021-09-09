@@ -108,14 +108,17 @@ This command will run 2 major test which uses the above 3 commands followed by b
 `runstep` command is custom-built for this tutorial to demo the working of step-ca.
 
 ```
-Usage: runstep <command>
+Usage: runstep <command> [options]
 Commands:
         install                         Install Step CA **
         uninstall                       Uninstall Step CA **
-        init                            Initialise Step CA
+        init [WEBSITE[,WEBSITE,...]]    Initialise Step CA
         service [COMMAND]               Manage Step CA service ** (Show status if no commands found)
         follow [KEYWORD]                Follow a service log 
         start                           Start Step CA server
+        sign CSR_FILE                   Sign a CSR file using Root CA **
+        signinter CSR_FILE              Sign a CSR file using Intermediate CA **
+        deploy                          Deploy Cloudflare worker
         commands [STEP PATH]            Show credentials of CA ** (default path=$ROOT_STEP_PATH)
         bootstrap FINGERPRINT [-c]      Bootstrap Step CA inside a client
         server [-m] [-p|--port PORT]    Run HTTPS server with optional mTLS **
